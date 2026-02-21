@@ -11,7 +11,7 @@ export default function Login() {
         if (role === 'admin') {
             navigate('/admin');
         } else {
-            console.log("teste1");
+            console.log("teste2");
             navigate('/tech');
         }
     };
