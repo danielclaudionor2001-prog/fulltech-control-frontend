@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/clerk-react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, Folder, UserPlus, X } from 'lucide-react';
 import { createServiceOrder, getCustomers } from '../services/api';
@@ -16,9 +16,11 @@ const getTodayInputValue = () => {
 export default function OSForm() {
   const { getToken } = useAuth();
   const navigate = useNavigate();
+  const customerAutocompleteRef = useRef(null);
   const [customers, setCustomers] = useState([]);
   const [activeTab, setActiveTab] = useState('geral');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCustomerMenuOpen, setIsCustomerMenuOpen] = useState(false);
   const [submitError, setSubmitError] = useState('');
 
   const [formData, setFormData] = useState({
@@ -49,6 +51,32 @@ export default function OSForm() {
   }, [fetchCustomers]);
 
   const descriptionCount = formData.description.length;
+  const filteredCustomers = useMemo(() => {
+    const query = formData.customer.trim().toLowerCase();
+
+    if (!query) {
+      return customers;
+    }
+
+    return customers.filter((customer) => {
+      const searchableText = `${customer.name} ${customer.address}`.toLowerCase();
+      return searchableText.includes(query);
+    });
+  }, [customers, formData.customer]);
+
+  useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (!customerAutocompleteRef.current?.contains(event.target)) {
+        setIsCustomerMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+    };
+  }, []);
 
   const canSubmit = useMemo(
     () =>
@@ -84,18 +112,32 @@ export default function OSForm() {
   const handleChange = (event) => {
     const { name, value } = event.target;
 
-    if (name === 'customerId') {
-      const selectedCustomer = customers.find((customer) => customer.id === value);
-      setFormData((previous) => ({
-        ...previous,
-        address: selectedCustomer?.address || previous.address,
-        customer: selectedCustomer?.name || previous.customer,
-        customerId: value,
-      }));
-      return;
-    }
-
     setFormData((previous) => ({ ...previous, [name]: value }));
+  };
+
+  const handleCustomerChange = (event) => {
+    const { value } = event.target;
+    const exactMatch = customers.find(
+      (customer) => customer.name.trim().toLowerCase() === value.trim().toLowerCase(),
+    );
+
+    setIsCustomerMenuOpen(true);
+    setFormData((previous) => ({
+      ...previous,
+      address: exactMatch?.address || previous.address,
+      customer: value,
+      customerId: exactMatch?.id || '',
+    }));
+  };
+
+  const handleCustomerSelect = (customer) => {
+    setFormData((previous) => ({
+      ...previous,
+      address: customer.address || previous.address,
+      customer: customer.name,
+      customerId: customer.id,
+    }));
+    setIsCustomerMenuOpen(false);
   };
 
   return (
@@ -207,43 +249,47 @@ export default function OSForm() {
                 </div>
               </div>
 
-              <div className="os-row cols-1">
-                <div className="os-field">
-                  <label className="os-label">Cliente cadastrado</label>
-                  <div className="os-underline os-select-shell">
-                    <select
-                      className="os-select"
-                      name="customerId"
-                      value={formData.customerId}
-                      onChange={handleChange}
-                    >
-                      <option value="">Selecionar cliente salvo</option>
-                      {customers.map((customer) => (
-                        <option key={customer.id} value={customer.id}>
-                          {customer.name}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="os-caret">
-                      <ChevronDown size={18} />
-                    </span>
-                  </div>
-                </div>
-              </div>
-
               <div className="os-row cols-1 os-client-row">
-                <div className="os-field">
+                <div className="os-field os-client-field" ref={customerAutocompleteRef}>
                   <label className="os-label">Cliente *</label>
-                  <div className="os-underline">
+                  <div className="os-underline os-autocomplete-shell">
                     <input
                       className="os-input"
                       type="text"
                       name="customer"
                       required
+                      autoComplete="off"
                       value={formData.customer}
-                      onChange={handleChange}
+                      onChange={handleCustomerChange}
+                      onFocus={() => setIsCustomerMenuOpen(true)}
+                      onClick={() => setIsCustomerMenuOpen(true)}
                     />
                   </div>
+
+                  {isCustomerMenuOpen ? (
+                    <div className="os-autocomplete-panel">
+                      {filteredCustomers.length ? (
+                        filteredCustomers.map((customer) => (
+                          <button
+                            key={customer.id}
+                            type="button"
+                            className="os-autocomplete-item"
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              handleCustomerSelect(customer);
+                            }}
+                          >
+                            <span>{customer.name}</span>
+                            <small>{customer.address}</small>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="os-autocomplete-empty">
+                          Nenhum cliente encontrado.
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
 
                 <button
