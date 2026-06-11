@@ -18,7 +18,7 @@ export default function RequireRole({ allowedRoles, children }) {
     return (
       <FullPageState>
         <h2>Carregando acesso...</h2>
-        <p>Validando a sua sessao e preparando o painel.</p>
+        <p>Validando a sua sessão e preparando o painel.</p>
       </FullPageState>
     );
   }

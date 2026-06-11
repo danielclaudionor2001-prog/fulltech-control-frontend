@@ -1,7 +1,13 @@
 import { UserButton } from '@clerk/clerk-react';
 import React from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Building2, List, MapPin, Plus, ShieldCheck } from 'lucide-react';
+import {
+  Building2,
+  ClipboardList,
+  MapPin,
+  Plus,
+  ShieldCheck,
+} from 'lucide-react';
 import { useAppAuth } from '../auth/useAppAuth';
 
 export default function Layout() {
@@ -12,69 +18,64 @@ export default function Layout() {
     appUser?.name ||
     clerkUser?.fullName ||
     clerkUser?.primaryEmailAddress?.emailAddress ||
-    'Usuario';
+    'Usuário';
+  const tabs = isAdmin
+    ? [
+        { icon: ClipboardList, label: 'OS', to: '/admin' },
+        { icon: Plus, label: 'Nova OS', to: '/admin/create' },
+        { icon: MapPin, label: 'Mapa', to: '/admin/map' },
+        { icon: Building2, label: 'Clientes', to: '/admin/customers' },
+        { icon: ShieldCheck, label: 'Acessos', to: '/admin/access' },
+      ]
+    : [{ icon: ClipboardList, label: 'Minhas OS', to: '/tech' }];
+
+  const isTabActive = (to) => {
+    if (to === '/admin' || to === '/tech') {
+      return location.pathname === to;
+    }
+
+    return location.pathname.startsWith(to);
+  };
 
   return (
     <div className="layout">
-      <nav className="navbar">
+      <header className="topbar">
         <Link to={isAdmin ? '/admin' : '/tech'} className="brand">
-          Fulltech Control
+          <span className="brand-kicker">Operação</span>
+          <strong className="brand-title">Fulltech Control</strong>
         </Link>
 
-        <div className="nav-links">
-          {isAdmin ? (
-            <>
-              <Link
-                to="/admin"
-                className={`nav-link ${location.pathname === '/admin' ? 'active' : ''}`}
-              >
-                <List size={20} /> <span className="d-none-mobile">OS</span>
-              </Link>
-              <Link
-                to="/admin/create"
-                className={`nav-link ${location.pathname === '/admin/create' ? 'active' : ''}`}
-              >
-                <Plus size={20} /> <span className="d-none-mobile">Nova OS</span>
-              </Link>
-              <Link
-                to="/admin/map"
-                className={`nav-link ${location.pathname === '/admin/map' ? 'active' : ''}`}
-              >
-                <MapPin size={20} /> <span className="d-none-mobile">Mapa</span>
-              </Link>
-              <Link
-                to="/admin/customers"
-                className={`nav-link ${location.pathname === '/admin/customers' ? 'active' : ''}`}
-              >
-                <Building2 size={20} /> <span className="d-none-mobile">Clientes</span>
-              </Link>
-              <Link
-                to="/admin/access"
-                className={`nav-link ${location.pathname === '/admin/access' ? 'active' : ''}`}
-              >
-                <ShieldCheck size={20} /> <span className="d-none-mobile">Acessos</span>
-              </Link>
-            </>
-          ) : (
-            <Link
-              to="/tech"
-              className={`nav-link ${location.pathname === '/tech' ? 'active' : ''}`}
-            >
-              <List size={20} /> <span className="d-none-mobile">Minhas OS</span>
-            </Link>
-          )}
-
+        <div className="topbar-side">
           <div className="nav-user">
             <div className="nav-user-copy">
               <span className="nav-user-name">{displayName}</span>
               <span className="nav-user-role">
-                {isAdmin ? 'Administrador' : 'Tecnico'}
+                {isAdmin ? 'Administrador' : 'Técnico'}
               </span>
             </div>
             <UserButton afterSignOutUrl="/" />
           </div>
         </div>
-      </nav>
+      </header>
+
+      <div className="tab-shell">
+        <nav className="tab-nav" aria-label="Navegação principal">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+
+            return (
+              <Link
+                key={tab.to}
+                to={tab.to}
+                className={`tab-link ${isTabActive(tab.to) ? 'active' : ''}`.trim()}
+              >
+                <Icon size={18} />
+                <span>{tab.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
 
       <main className="main-content">
         <Outlet />

@@ -39,28 +39,50 @@ export default function MapPage() {
   }, [getToken]);
 
   return (
-    <div style={{ height: 'calc(100vh - 100px)', borderRadius: '12px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-      <MapContainer center={[-23.55052, -46.633308]} zoom={13} style={{ height: '100%', width: '100%' }}>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+    <div className="dashboard-stack">
+      <div className="page-hero">
+        <div>
+          <span className="page-eyebrow">Rastreamento</span>
+          <h1 className="page-title">Mapa da equipe</h1>
+          <p className="page-subtitle">
+            Visualize a posição mais recente dos técnicos com atualização
+            automática do painel.
+          </p>
+        </div>
+      </div>
 
-        {locations.map((location) => (
-          <Marker key={location.technician.id} position={[location.lat, location.lng]}>
-            <Popup>
-              <strong>
-                {location.technician.name ||
-                  location.technician.email ||
-                  location.technician.clerkUserId}
-              </strong>
-              <br />
-              Ultima atualizacao:{' '}
-              {new Date(location.timestamp).toLocaleTimeString('pt-BR')}
-            </Popup>
-          </Marker>
-        ))}
-      </MapContainer>
+      <section className="section-card map-card">
+        <div className="map-frame">
+          <MapContainer
+            center={[-23.55052, -46.633308]}
+            zoom={13}
+            style={{ height: '100%', width: '100%' }}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+
+            {locations.map((location) => (
+              <Marker
+                key={location.technician.id}
+                position={[location.lat, location.lng]}
+              >
+                <Popup>
+                  <strong>
+                    {location.technician.name ||
+                      location.technician.email ||
+                      location.technician.clerkUserId}
+                  </strong>
+                  <br />
+                  Última atualização:{' '}
+                  {new Date(location.timestamp).toLocaleTimeString('pt-BR')}
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        </div>
+      </section>
     </div>
   );
 }

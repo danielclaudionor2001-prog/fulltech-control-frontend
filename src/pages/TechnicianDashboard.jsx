@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
-import { MapPin, RefreshCw } from 'lucide-react';
+import { CircleAlert, MapPin, RefreshCw } from 'lucide-react';
 import OSCard from '../components/OSCard';
+import SkeletonBlock from '../components/SkeletonBlock';
 import {
   getServiceOrders,
   startServiceOrder,
@@ -13,7 +14,7 @@ import { useAppAuth } from '../auth/useAppAuth';
 function getCurrentPosition() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error('Geolocalizacao nao suportada neste navegador.'));
+      reject(new Error('Geolocalização não suportada neste navegador.'));
       return;
     }
 
@@ -33,8 +34,11 @@ export default function TechnicianDashboard() {
   const [locationState, setLocationState] = useState('checking');
   const [locationError, setLocationError] = useState('');
 
+  const isInitialLoading = loading && orders.length === 0;
+
   const fetchOrders = useCallback(async () => {
     setLoading(true);
+
     try {
       const data = await getServiceOrders(getToken);
       setOrders(data);
@@ -107,10 +111,10 @@ export default function TechnicianDashboard() {
       },
       () => {
         setLocationError(
-          'Nao foi possivel atualizar sua localizacao em segundo plano.',
+          'Não foi possível atualizar sua localização em segundo plano.',
         );
       },
-      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 },
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
@@ -123,6 +127,14 @@ export default function TechnicianDashboard() {
   const myOrders = useMemo(
     () => orders.filter((os) => os.assignedToId === appUser?.id),
     [appUser?.id, orders],
+  );
+  const inProgressOrders = useMemo(
+    () => myOrders.filter((os) => os.status === 'IN_PROGRESS'),
+    [myOrders],
+  );
+  const completedOrders = useMemo(
+    () => myOrders.filter((os) => os.status === 'DONE'),
+    [myOrders],
   );
 
   const handleClaim = async (id) => {
@@ -143,7 +155,7 @@ export default function TechnicianDashboard() {
       const message =
         error instanceof Error
           ? error.message
-          : 'Voce precisa permitir a localizacao para iniciar o atendimento.';
+          : 'Você precisa permitir a localização para iniciar o atendimento.';
       setLocationError(message);
     }
   };
@@ -155,77 +167,179 @@ export default function TechnicianDashboard() {
 
   const locationBadgeLabel =
     locationState === 'granted'
-      ? 'Localizacao liberada'
+      ? 'Localização liberada'
       : locationState === 'denied'
-        ? 'Permissao negada'
-        : 'Localizacao exigida';
+        ? 'Permissão negada'
+        : 'Localização exigida';
 
   return (
     <div className="dashboard-stack">
-      <div className="dashboard-header">
-        <div>
-          <h2>Painel do Tecnico</h2>
-          <p className="section-subtitle">
-            Para iniciar um atendimento, o navegador precisa liberar sua
-            localizacao.
-          </p>
-        </div>
-
-        <div className="dashboard-actions">
-          <div className="status-badge status-progress tracking-badge">
-            <MapPin size={16} />
-            <span>{locationBadgeLabel}</span>
+      <section className="hero-panel">
+        <div className="page-hero">
+          <div>
+            <span className="page-eyebrow">Atendimento em campo</span>
+            <h1 className="page-title">Painel do técnico</h1>
+            <p className="page-subtitle">
+              Para iniciar um atendimento, o navegador precisa liberar sua
+              localização e mantê-la ativa durante a execução.
+            </p>
           </div>
 
-          <button className="btn btn-outline" onClick={() => void fetchOrders()} title="Atualizar">
-            <RefreshCw size={20} />
-          </button>
+          <div className="dashboard-actions">
+            <div className="status-badge status-progress tracking-badge">
+              <MapPin size={16} />
+              <span>{locationBadgeLabel}</span>
+            </div>
+
+            <button
+              className="btn btn-secondary"
+              onClick={() => void fetchOrders()}
+              title="Atualizar"
+              type="button"
+            >
+              <RefreshCw size={20} />
+              Atualizar
+            </button>
+          </div>
         </div>
-      </div>
+
+        <div className="summary-grid">
+          <div className="summary-card summary-card-blue">
+            <span className="summary-label">Minhas OS</span>
+            {isInitialLoading ? (
+              <SkeletonBlock className="skeleton-number" />
+            ) : (
+              <strong>{myOrders.length}</strong>
+            )}
+            <small>Ordens já vinculadas ao seu usuário</small>
+          </div>
+          <div className="summary-card summary-card-sky">
+            <span className="summary-label">Em andamento</span>
+            {isInitialLoading ? (
+              <SkeletonBlock className="skeleton-number" />
+            ) : (
+              <strong>{inProgressOrders.length}</strong>
+            )}
+            <small>Atendimentos ativos neste momento</small>
+          </div>
+          <div className="summary-card summary-card-slate">
+            <span className="summary-label">Disponíveis</span>
+            {isInitialLoading ? (
+              <SkeletonBlock className="skeleton-number" />
+            ) : (
+              <strong>{availableOrders.length}</strong>
+            )}
+            <small>Chamados abertos aguardando aceite</small>
+          </div>
+          <div className="summary-card summary-card-amber">
+            <span className="summary-label">Concluídas</span>
+            {isInitialLoading ? (
+              <SkeletonBlock className="skeleton-number" />
+            ) : (
+              <strong>{completedOrders.length}</strong>
+            )}
+            <small>Ordens finalizadas por você</small>
+          </div>
+        </div>
+      </section>
 
       {locationError ? <div className="inline-error">{locationError}</div> : null}
 
-      <section className="section-card">
-        <h3>Minhas OS</h3>
-        {loading ? (
-          <p>Carregando...</p>
-        ) : myOrders.length === 0 ? (
-          <p>Voce ainda nao assumiu nenhuma OS.</p>
-        ) : (
-          <div className="grid">
-            {myOrders.map((os) => (
-              <OSCard
-                key={os.id}
-                os={os}
-                isTechnician
-                onClaim={handleClaim}
-                onStatusUpdate={handleStatusUpdate}
-              />
-            ))}
+      <div className="content-grid content-grid-dashboard">
+        <section className="section-card">
+          <div className="section-title">
+            <MapPin size={18} />
+            <div>
+              <h3>Minhas ordens</h3>
+              <p className="section-subtitle">
+                Acompanhe o que já está no seu nome e finalize os atendimentos
+                concluídos.
+              </p>
+            </div>
           </div>
-        )}
-      </section>
 
-      <section className="section-card">
-        <h3>OS disponiveis</h3>
-        {loading ? (
-          <p>Carregando...</p>
-        ) : availableOrders.length === 0 ? (
-          <p>Nenhuma OS disponivel no momento.</p>
-        ) : (
-          <div className="grid">
-            {availableOrders.map((os) => (
-              <OSCard
-                key={os.id}
-                os={os}
-                isTechnician
-                onClaim={handleClaim}
-                onStatusUpdate={handleStatusUpdate}
-              />
-            ))}
+          {isInitialLoading ? (
+            <div className="grid">
+              {Array.from({ length: 2 }).map((_, index) => (
+                <div className="skeleton-card" key={`my-orders-skeleton-${index}`}>
+                  <div className="skeleton-card-stack">
+                    <SkeletonBlock className="skeleton-chip" />
+                    <SkeletonBlock className="skeleton-title" />
+                    <SkeletonBlock className="skeleton-line" />
+                    <SkeletonBlock className="skeleton-line" />
+                    <SkeletonBlock className="skeleton-line-short" />
+                    <SkeletonBlock className="skeleton-button" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : myOrders.length === 0 ? (
+            <div className="empty-state">
+              <CircleAlert size={18} />
+              <span>Você ainda não assumiu nenhuma OS.</span>
+            </div>
+          ) : (
+            <div className="grid">
+              {myOrders.map((os) => (
+                <OSCard
+                  key={os.id}
+                  isTechnician
+                  onClaim={handleClaim}
+                  onStatusUpdate={handleStatusUpdate}
+                  os={os}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="section-card">
+          <div className="section-title">
+            <CircleAlert size={18} />
+            <div>
+              <h3>OS disponíveis</h3>
+              <p className="section-subtitle">
+                Ordens livres para assumir assim que a localização estiver
+                liberada.
+              </p>
+            </div>
           </div>
-        )}
-      </section>
+
+          {isInitialLoading ? (
+            <div className="grid">
+              {Array.from({ length: 2 }).map((_, index) => (
+                <div className="skeleton-card" key={`available-orders-skeleton-${index}`}>
+                  <div className="skeleton-card-stack">
+                    <SkeletonBlock className="skeleton-chip" />
+                    <SkeletonBlock className="skeleton-title" />
+                    <SkeletonBlock className="skeleton-line" />
+                    <SkeletonBlock className="skeleton-line" />
+                    <SkeletonBlock className="skeleton-line-short" />
+                    <SkeletonBlock className="skeleton-button" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : availableOrders.length === 0 ? (
+            <div className="empty-state">
+              <CircleAlert size={18} />
+              <span>Nenhuma OS disponível no momento.</span>
+            </div>
+          ) : (
+            <div className="grid">
+              {availableOrders.map((os) => (
+                <OSCard
+                  key={os.id}
+                  isTechnician
+                  onClaim={handleClaim}
+                  onStatusUpdate={handleStatusUpdate}
+                  os={os}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { AlertCircle, Clock, MapPin, User } from 'lucide-react';
 
 const STATUS_LABELS = {
   CANCELED: 'Cancelado',
-  DONE: 'Concluido',
+  DONE: 'Concluído',
   IN_PROGRESS: 'Em Andamento',
   OPEN: 'Pendente',
 };
@@ -15,10 +15,16 @@ const formatDateTime = (dateLike) => {
 
   const parsedDate = new Date(dateLike);
   if (Number.isNaN(parsedDate.getTime())) {
-    return 'Data invalida';
+    return 'Data inválida';
   }
 
-  return parsedDate.toLocaleString('pt-BR');
+  return parsedDate.toLocaleString('pt-BR', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 };
 
 export default function OSCard({
@@ -38,7 +44,7 @@ export default function OSCard({
         return 'status-badge status-pending';
       case 'Em Andamento':
         return 'status-badge status-progress';
-      case 'Concluido':
+      case 'Concluído':
         return 'status-badge status-done';
       case 'Cancelado':
         return 'status-badge status-canceled';
@@ -48,38 +54,45 @@ export default function OSCard({
   };
 
   return (
-    <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-        <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginRight: '0.75rem', flex: 1, minWidth: 0 }}>
-          {os.identifier ? `#${os.identifier}` : `#${os.id.slice(0, 8)}`} - {os.customer}
-        </h3>
-        <span className={getStatusColor(statusLabel)} style={{ flexShrink: 0 }}>
+    <article className="card os-card">
+      <div className="os-card-header">
+        <div className="os-card-copy">
+          <span className="os-card-overline">Ordem de serviço</span>
+          <h3 className="os-card-title">
+            {os.identifier ? `#${os.identifier}` : `#${os.id.slice(0, 8)}`} - {os.customer}
+          </h3>
+        </div>
+
+        <span className={getStatusColor(statusLabel)}>
           {statusLabel}
         </span>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', color: 'var(--text-light)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <div className="os-card-body">
+        <div className="os-card-meta-item">
           <MapPin size={16} />
-          <span>{os.address || 'Endereco nao informado'}</span>
+          <span>{os.address || 'Endereço não informado'}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+
+        <div className="os-card-meta-item">
           <AlertCircle size={16} />
           <span>{os.description}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+
+        <div className="os-card-meta-item">
           <Clock size={16} />
           <span>{formatDateTime(os.scheduleAt)}</span>
         </div>
-        {technicianLabel && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+
+        {technicianLabel ? (
+          <div className="os-card-meta-item">
             <User size={16} />
-            <span>Tecnico: {technicianLabel}</span>
+            <span>Técnico: {technicianLabel}</span>
           </div>
-        )}
+        ) : null}
       </div>
 
-      <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+      <div className="os-card-actions">
         {isTechnician && !os.assignedToId && os.status === 'OPEN' && onClaim ? (
           <button className="btn btn-primary" onClick={() => onClaim(os.id)}>
             Assumir OS
@@ -100,11 +113,11 @@ export default function OSCard({
         ) : null}
 
         {!isTechnician && os.status === 'OPEN' && onAssign ? (
-          <button className="btn btn-outline" onClick={() => onAssign(os.id)}>
+          <button className="btn btn-secondary" onClick={() => onAssign(os.id)}>
             Marcar em andamento
           </button>
         ) : null}
       </div>
-    </div>
+    </article>
   );
 }

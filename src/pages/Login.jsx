@@ -14,7 +14,7 @@ export default function Login() {
       <div className="page-state">
         <div className="page-state-card">
           <h1>Fulltech Control</h1>
-          <p>Validando sua sessao...</p>
+          <p>Validando sua sessão...</p>
         </div>
       </div>
     );
@@ -31,13 +31,13 @@ export default function Login() {
           <div className="access-icon">
             <ShieldCheck size={28} />
           </div>
-          <h1>Acesso nao autorizado</h1>
+          <h1>Acesso não autorizado</h1>
           <p>
-            O login foi concluido, mas esse e-mail ainda nao foi liberado por um
-            administrador para entrar na aplicacao.
+            O login foi concluído, mas esse e-mail ainda não foi liberado por um
+            administrador para entrar na aplicação.
           </p>
           <p className="access-email">
-            {clerkUser?.primaryEmailAddress?.emailAddress || 'Email indisponivel'}
+            {clerkUser?.primaryEmailAddress?.emailAddress || 'E-mail indisponível'}
           </p>
           <div className="access-actions">
             <button className="btn btn-primary" onClick={() => void refreshCurrentUser()}>
@@ -57,7 +57,7 @@ export default function Login() {
       <div className="page-state">
         <div className="page-state-card access-card">
           <h1>Falha ao carregar o acesso</h1>
-          <p>{error || 'Nao foi possivel validar o perfil da aplicacao.'}</p>
+          <p>{error || 'Não foi possível validar o perfil da aplicação.'}</p>
           <div className="access-actions">
             <button className="btn btn-primary" onClick={() => void refreshCurrentUser()}>
               Tentar novamente
@@ -74,21 +74,21 @@ export default function Login() {
   return (
     <div className="auth-shell">
       <div className="auth-panel auth-copy">
-        <div className="auth-badge">Controle operacional com Clerk</div>
+        <span className="auth-badge">Operação conectada</span>
         <h1>Fulltech Control</h1>
         <p>
-          O administrador acompanha a operacao inteira. O tecnico entra com a
-          conta Clerk, assume ordens disponiveis e atualiza a execucao em campo.
+          Uma entrada única para administração, despacho, acompanhamento em
+          campo e controle de ordens de serviço.
         </p>
 
         <div className="auth-highlights">
           <div className="auth-highlight">
             <ShieldCheck size={18} />
-            <span>Acesso por perfil com allowlist de e-mails</span>
+            <span>Acesso controlado por perfil e por e-mail autorizado</span>
           </div>
           <div className="auth-highlight">
             <Wrench size={18} />
-            <span>Fluxo de OS pensado para tecnico e administrador</span>
+            <span>Fluxo simples para administrador e técnico no mesmo sistema</span>
           </div>
         </div>
       </div>

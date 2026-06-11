@@ -4,7 +4,7 @@ const API_BASE_URL = (
 
 const STATUS_TO_UI = {
   CANCELED: 'Cancelado',
-  DONE: 'Concluido',
+  DONE: 'Concluído',
   IN_PROGRESS: 'Em Andamento',
   OPEN: 'Pendente',
 };
@@ -75,9 +75,9 @@ export const updateUserRole = (id, role, getToken) =>
 
 export const getAccessList = (getToken) => request('/access-list', { getToken });
 
-export const createAllowedEmail = (email, getToken) =>
+export const createAllowedEmail = (email, role, getToken) =>
   request('/access-list', {
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, role }),
     getToken,
     method: 'POST',
   });

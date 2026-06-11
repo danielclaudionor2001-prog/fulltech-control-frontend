@@ -1,9 +1,25 @@
 import { useAuth } from '@clerk/clerk-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FolderKanban, MapPin, Paperclip, UserPlus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Folder, UserPlus, X } from 'lucide-react';
+import SelectField from '../components/SelectField';
 import { createServiceOrder, getCustomers } from '../services/api';
-import '../index.css';
+
+const ORDER_TYPE_OPTIONS = [
+  { label: 'Instalação', value: 'instalacao' },
+  { label: 'Manutenção', value: 'manutencao' },
+  { label: 'Vistoria', value: 'vistoria' },
+  { label: 'Suporte', value: 'suporte' },
+];
+
+const DEADLINE_OPTIONS = [
+  { label: 'Sem prazo', value: '' },
+  { label: '1 dia', value: 'D1_dia' },
+  { label: '3 dias', value: 'D3_dias' },
+  { label: '7 dias', value: 'D7_dias' },
+  { label: '15 dias', value: 'D15_dias' },
+  { label: '30 dias', value: 'D30_dias' },
+];
 
 const getTodayInputValue = () => {
   const now = new Date();
@@ -102,7 +118,7 @@ export default function OSForm() {
       navigate('/admin');
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : 'Falha ao criar OS';
+        error instanceof Error ? error.message : 'Falha ao criar a OS.';
       setSubmitError(message);
     } finally {
       setIsSubmitting(false);
@@ -111,7 +127,6 @@ export default function OSForm() {
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-
     setFormData((previous) => ({ ...previous, [name]: value }));
   };
 
@@ -141,120 +156,107 @@ export default function OSForm() {
   };
 
   return (
-    <div className="os-shell">
-      <div className="os-header">
-        <div className="os-header-left">
-          <Folder size={20} />
-          <div className="os-header-title">Nova atividade</div>
+    <div className="dashboard-stack">
+      <section className="page-hero">
+        <div>
+          <span className="page-eyebrow">Despacho</span>
+          <h1 className="page-title">Nova ordem de serviço</h1>
+          <p className="page-subtitle">
+            Estruture a OS com cliente, janela de atendimento, prioridade e
+            local de execução sem sair do fluxo administrativo.
+          </p>
         </div>
 
-        <div className="os-header-actions">
+        <button className="btn btn-secondary" onClick={() => navigate('/admin')} type="button">
+          <X size={18} />
+          Fechar
+        </button>
+      </section>
+
+      <section className="os-shell">
+        <div className="os-header">
+          <div className="os-header-left">
+            <div className="os-header-icon">
+              <FolderKanban size={18} />
+            </div>
+            <div>
+              <span className="os-header-kicker">Cadastro</span>
+              <div className="os-header-title">Detalhes da nova OS</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="os-tabs">
           <button
             type="button"
-            className="os-icon-btn"
-            onClick={() => navigate('/admin')}
-            aria-label="Fechar"
+            className={`os-tab ${activeTab === 'geral' ? 'active' : ''}`}
+            onClick={() => setActiveTab('geral')}
           >
-            <X size={20} />
+            Geral
+          </button>
+          <button
+            type="button"
+            className={`os-tab ${activeTab === 'localizacao' ? 'active' : ''}`}
+            onClick={() => setActiveTab('localizacao')}
+          >
+            Localização
+          </button>
+          <button
+            type="button"
+            className={`os-tab ${activeTab === 'anexos' ? 'active' : ''}`}
+            onClick={() => setActiveTab('anexos')}
+          >
+            Anexos
           </button>
         </div>
-      </div>
 
-      <div className="os-tabs">
-        <button
-          type="button"
-          className={`os-tab ${activeTab === 'geral' ? 'active' : ''}`}
-          onClick={() => setActiveTab('geral')}
-        >
-          GERAL
-        </button>
-        <button
-          type="button"
-          className={`os-tab ${activeTab === 'localizacao' ? 'active' : ''}`}
-          onClick={() => setActiveTab('localizacao')}
-        >
-          LOCALIZACAO
-        </button>
-        <button
-          type="button"
-          className={`os-tab ${activeTab === 'anexos' ? 'active' : ''}`}
-          onClick={() => setActiveTab('anexos')}
-        >
-          ANEXOS
-        </button>
-      </div>
-
-      <div className="os-content">
         <form className="os-form" onSubmit={handleSubmit}>
           {activeTab === 'geral' ? (
-            <div className="os-form-inner">
+            <div className="os-form-panel">
               <div className="os-row cols-3">
-                <div className="os-field">
-                  <label className="os-label">Identificador</label>
-                  <div className="os-underline">
-                    <input
-                      className="os-input"
-                      type="text"
-                      name="identifier"
-                      value={formData.identifier}
-                      onChange={handleChange}
-                    />
-                  </div>
-                </div>
+                <label className="simple-form-field">
+                  <span>Identificador</span>
+                  <input
+                    className="form-control"
+                    type="text"
+                    name="identifier"
+                    value={formData.identifier}
+                    onChange={handleChange}
+                    placeholder="Ex.: 24871"
+                  />
+                </label>
 
-                <div className="os-field">
-                  <label className="os-label">Selecione um tipo de OS *</label>
-                  <div className="os-underline os-select-shell">
-                    <select
-                      className="os-select"
-                      name="osType"
-                      required
-                      value={formData.osType}
-                      onChange={handleChange}
-                    >
-                      <option value="" disabled>
-                        Selecione
-                      </option>
-                      <option value="instalacao">Instalacao</option>
-                      <option value="manutencao">Manutencao</option>
-                      <option value="vistoria">Vistoria</option>
-                      <option value="suporte">Suporte</option>
-                    </select>
-                    <span className="os-caret">
-                      <ChevronDown size={18} />
-                    </span>
-                  </div>
-                </div>
+                <label className="simple-form-field">
+                  <span>Tipo de OS *</span>
+                  <SelectField
+                    options={ORDER_TYPE_OPTIONS}
+                    onChange={(value) =>
+                      setFormData((previous) => ({ ...previous, osType: value }))
+                    }
+                    placeholder="Selecione o tipo"
+                    value={formData.osType}
+                  />
+                </label>
 
-                <div className="os-field">
-                  <label className="os-label">Prazo</label>
-                  <div className="os-underline os-select-shell">
-                    <select
-                      className="os-select"
-                      name="deadline"
-                      value={formData.deadline}
-                      onChange={handleChange}
-                    >
-                      <option value="">Sem prazo</option>
-                      <option value="D1_dia">1 dia</option>
-                      <option value="D3_dias">3 dias</option>
-                      <option value="D7_dias">7 dias</option>
-                      <option value="D15_dias">15 dias</option>
-                      <option value="D30_dias">30 dias</option>
-                    </select>
-                    <span className="os-caret">
-                      <ChevronDown size={18} />
-                    </span>
-                  </div>
-                </div>
+                <label className="simple-form-field">
+                  <span>Prazo</span>
+                  <SelectField
+                    options={DEADLINE_OPTIONS}
+                    onChange={(value) =>
+                      setFormData((previous) => ({ ...previous, deadline: value }))
+                    }
+                    placeholder="Sem prazo"
+                    value={formData.deadline}
+                  />
+                </label>
               </div>
 
               <div className="os-row cols-1 os-client-row">
                 <div className="os-field os-client-field" ref={customerAutocompleteRef}>
-                  <label className="os-label">Cliente *</label>
-                  <div className="os-underline os-autocomplete-shell">
+                  <label className="simple-form-field">
+                    <span>Cliente *</span>
                     <input
-                      className="os-input"
+                      className="form-control"
                       type="text"
                       name="customer"
                       required
@@ -263,8 +265,9 @@ export default function OSForm() {
                       onChange={handleCustomerChange}
                       onFocus={() => setIsCustomerMenuOpen(true)}
                       onClick={() => setIsCustomerMenuOpen(true)}
+                      placeholder="Digite para buscar clientes"
                     />
-                  </div>
+                  </label>
 
                   {isCustomerMenuOpen ? (
                     <div className="os-autocomplete-panel">
@@ -302,119 +305,117 @@ export default function OSForm() {
                 </button>
               </div>
 
-              <div className="os-textarea-wrap">
+              <label className="simple-form-field os-textarea-wrap">
+                <span>Descrição da ordem de serviço *</span>
                 <textarea
                   className="os-textarea"
                   name="description"
-                  placeholder="Descricao da ordem de servico"
+                  placeholder="Descreva o que precisa ser feito, observações importantes e contexto do atendimento."
                   maxLength={5000}
                   required
                   value={formData.description}
                   onChange={handleChange}
                 />
-                <div className="os-counter">({descriptionCount} / 5000)</div>
-              </div>
+                <div className="os-counter">{descriptionCount} / 5000</div>
+              </label>
 
               <div className="os-row cols-3b">
-                <div className="os-field">
-                  <label className="os-label">Duracao estimada (min) *</label>
-                  <div className="os-underline">
-                    <input
-                      className="os-input"
-                      type="number"
-                      min="1"
-                      name="durationMinutes"
-                      required
-                      value={formData.durationMinutes}
-                      onChange={handleChange}
-                    />
-                  </div>
-                </div>
+                <label className="simple-form-field">
+                  <span>Duração estimada (min) *</span>
+                  <input
+                    className="form-control"
+                    type="number"
+                    min="1"
+                    name="durationMinutes"
+                    required
+                    value={formData.durationMinutes}
+                    onChange={handleChange}
+                    placeholder="60"
+                  />
+                </label>
 
-                <div className="os-field">
-                  <label className="os-label">Data do agendamento *</label>
-                  <div className="os-underline">
-                    <input
-                      className="os-input"
-                      type="date"
-                      name="scheduleDate"
-                      required
-                      value={formData.scheduleDate}
-                      onChange={handleChange}
-                    />
-                  </div>
-                </div>
+                <label className="simple-form-field">
+                  <span>Data do agendamento *</span>
+                  <input
+                    className="form-control"
+                    type="date"
+                    name="scheduleDate"
+                    required
+                    value={formData.scheduleDate}
+                    onChange={handleChange}
+                  />
+                </label>
 
-                <div className="os-field">
-                  <label className="os-label">Hora do agendamento</label>
-                  <div className="os-underline">
-                    <input
-                      className="os-input"
-                      type="time"
-                      name="scheduleTime"
-                      value={formData.scheduleTime}
-                      onChange={handleChange}
-                    />
-                  </div>
-                </div>
+                <label className="simple-form-field">
+                  <span>Hora do agendamento</span>
+                  <input
+                    className="form-control"
+                    type="time"
+                    name="scheduleTime"
+                    value={formData.scheduleTime}
+                    onChange={handleChange}
+                  />
+                </label>
               </div>
 
               <div className="os-row cols-1">
-                <div className="os-field">
-                  <label className="os-label">Colaborador</label>
-                  <div className="os-underline">
-                    <input
-                      className="os-input"
-                      type="text"
-                      name="collaborator"
-                      value={formData.collaborator}
-                      onChange={handleChange}
-                    />
-                  </div>
-                </div>
+                <label className="simple-form-field">
+                  <span>Colaborador</span>
+                  <input
+                    className="form-control"
+                    type="text"
+                    name="collaborator"
+                    value={formData.collaborator}
+                    onChange={handleChange}
+                    placeholder="Nome do contato ou solicitante"
+                  />
+                </label>
               </div>
-
-              <div className="os-divider" />
             </div>
           ) : null}
 
           {activeTab === 'localizacao' ? (
-            <div className="os-form-inner">
-              <div className="os-row cols-1">
-                <div className="os-field">
-                  <label className="os-label">Endereco</label>
-                  <div className="os-underline">
-                    <input
-                      className="os-input"
-                      type="text"
-                      name="address"
-                      value={formData.address}
-                      onChange={handleChange}
-                    />
-                  </div>
+            <div className="os-form-panel">
+              <div className="os-panel-empty">
+                <MapPin size={18} />
+                <div>
+                  <strong>Endereço do atendimento</strong>
+                  <p>
+                    Informe onde a equipe deve executar o serviço. Se o cliente
+                    já tiver endereço cadastrado, ele pode ser preenchido
+                    automaticamente.
+                  </p>
                 </div>
               </div>
-              <div className="os-divider" />
+
+              <div className="os-row cols-1">
+                <label className="simple-form-field">
+                  <span>Endereço</span>
+                  <input
+                    className="form-control"
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    placeholder="Rua, número, bairro, cidade"
+                  />
+                </label>
+              </div>
             </div>
           ) : null}
 
           {activeTab === 'anexos' ? (
-            <div className="os-form-inner">
-              <div className="os-row cols-1">
-                <div className="os-field">
-                  <label className="os-label">Anexos</label>
-                  <div className="os-underline">
-                    <input
-                      className="os-input"
-                      type="text"
-                      value=""
-                      readOnly
-                      placeholder="Envio de anexos"
-                    />
-                  </div>
+            <div className="os-form-panel">
+              <div className="os-panel-empty">
+                <Paperclip size={18} />
+                <div>
+                  <strong>Anexos</strong>
+                  <p>
+                    O campo de anexos pode ser conectado em seguida, mas a aba
+                    já está preparada para receber esse fluxo.
+                  </p>
                 </div>
               </div>
-              <div className="os-divider" />
             </div>
           ) : null}
 
@@ -422,15 +423,23 @@ export default function OSForm() {
 
           <div className="os-actions">
             <button
-              className="os-create"
+              className="btn btn-secondary"
+              onClick={() => navigate('/admin')}
+              type="button"
+            >
+              Cancelar
+            </button>
+
+            <button
+              className="btn btn-primary"
               type="submit"
               disabled={!canSubmit || isSubmitting}
             >
-              {isSubmitting ? 'CRIANDO...' : 'CRIAR'}
+              {isSubmitting ? 'Criando...' : 'Criar OS'}
             </button>
           </div>
         </form>
-      </div>
+      </section>
     </div>
   );
 }

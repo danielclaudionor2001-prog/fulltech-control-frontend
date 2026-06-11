@@ -3,14 +3,41 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppAuthContext } from './AppAuthContext';
 import { getCurrentUser } from '../services/api';
 
-function isPendingError(message) {
-  const normalized = message.toLowerCase();
-  return (
+function normalizeAccessError(error) {
+  const rawMessage =
+    error instanceof Error ? error.message : 'Falha ao carregar o acesso.';
+  const normalized = rawMessage.toLowerCase();
+
+  if (
+    normalized.includes('invalid clerk token') ||
+    normalized.includes('"unauthorized"') ||
+    normalized.includes('"statuscode":401') ||
+    normalized.includes('401')
+  ) {
+    return {
+      message:
+        'Sua sessão expirou ou não pode ser validada. Entre novamente para continuar.',
+      status: 'error',
+    };
+  }
+
+  if (
     normalized.includes('pending approval') ||
     normalized.includes('inactive') ||
     normalized.includes('403') ||
     normalized.includes('not authorized')
-  );
+  ) {
+    return {
+      message:
+        'O login foi concluído, mas esse e-mail ainda não foi liberado por um administrador.',
+      status: 'pending',
+    };
+  }
+
+  return {
+    message: 'Não foi possível validar seu acesso agora. Tente novamente em instantes.',
+    status: 'error',
+  };
 }
 
 const initialResolvedState = {
@@ -39,14 +66,13 @@ export function AppAuthProvider({ children }) {
         status: 'ready',
       });
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Falha ao carregar o acesso.';
+      const normalizedError = normalizeAccessError(error);
 
       setState({
         appUser: null,
-        error: message,
+        error: normalizedError.message,
         resolvedUserId: user.id,
-        status: isPendingError(message) ? 'pending' : 'error',
+        status: normalizedError.status,
       });
     }
   }, [getToken, isSignedIn, user]);
@@ -76,14 +102,13 @@ export function AppAuthProvider({ children }) {
           return;
         }
 
-        const message =
-          error instanceof Error ? error.message : 'Falha ao carregar o acesso.';
+        const normalizedError = normalizeAccessError(error);
 
         setState({
           appUser: null,
-          error: message,
+          error: normalizedError.message,
           resolvedUserId: user.id,
-          status: isPendingError(message) ? 'pending' : 'error',
+          status: normalizedError.status,
         });
       }
     };

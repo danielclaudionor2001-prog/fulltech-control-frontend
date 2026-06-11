@@ -1,4 +1,5 @@
 import { ClerkProvider } from '@clerk/clerk-react';
+import { ptBR } from '@clerk/localizations';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
@@ -14,7 +15,11 @@ if (!clerkPublishableKey) {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ClerkProvider publishableKey={clerkPublishableKey} afterSignOutUrl="/">
+    <ClerkProvider
+      publishableKey={clerkPublishableKey}
+      afterSignOutUrl="/"
+      localization={ptBR}
+    >
       <BrowserRouter>
         <AppAuthProvider>
           <App />
