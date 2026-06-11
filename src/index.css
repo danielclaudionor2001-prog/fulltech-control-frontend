@@ -45,6 +45,7 @@ html {
 
 body {
   min-height: 100vh;
+  overflow-x: hidden;
   background:
     radial-gradient(
       circle at top left,
@@ -68,6 +69,7 @@ a {
 
 #root {
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 button,
@@ -89,9 +91,11 @@ textarea {
 }
 
 .layout {
+  width: 100%;
   max-width: 1480px;
   margin: 0 auto;
   padding: 24px 24px 40px;
+  min-width: 0;
 }
 
 .topbar {
@@ -196,6 +200,8 @@ textarea {
   position: relative;
   z-index: 1;
   margin-top: -1px;
+  max-width: 100%;
+  overflow: hidden;
   background: var(--panel-surface);
   border: 1px solid var(--line-strong);
   border-radius: 28px;
@@ -258,7 +264,7 @@ textarea {
 }
 
 .grid {
-  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
 }
 
 .action-grid {
@@ -278,6 +284,11 @@ textarea {
 .card,
 .page-state-card {
   border-radius: var(--radius-lg);
+  min-width: 0;
+}
+
+.mobile-bottom-nav {
+  display: none;
 }
 
 .summary-card {
@@ -1167,6 +1178,29 @@ textarea {
   line-height: 1.7;
 }
 
+.page-state-card-compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.95rem;
+}
+
+.session-spinner {
+  width: 34px;
+  height: 34px;
+  border: 3px solid rgba(47, 119, 255, 0.16);
+  border-top-color: var(--primary-600);
+  border-radius: 999px;
+  animation: session-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes session-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .access-card {
   display: flex;
   flex-direction: column;
@@ -1449,6 +1483,10 @@ textarea {
   padding-right: 54px;
 }
 
+.os-client-field-full {
+  padding-right: 0;
+}
+
 .os-client-action {
   position: absolute;
   right: 0;
@@ -1474,6 +1512,10 @@ textarea {
   overflow-y: auto;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.98);
+}
+
+.os-client-field-full .os-autocomplete-panel {
+  right: 0;
 }
 
 .os-autocomplete-item {
@@ -1553,10 +1595,10 @@ textarea {
 
 @media (max-width: 860px) {
   .layout {
-    padding: 16px 16px 28px;
+    padding: 12px 10px calc(106px + env(safe-area-inset-bottom));
+    max-width: 100%;
   }
 
-  .topbar,
   .page-hero,
   .dashboard-actions,
   .user-item,
@@ -1565,25 +1607,44 @@ textarea {
     align-items: stretch;
   }
 
+  .topbar {
+    flex-direction: row;
+    align-items: center;
+    padding: 0.25rem 0.1rem 0.75rem;
+  }
+
+  .brand-kicker {
+    display: none;
+  }
+
+  .brand-title {
+    font-size: 1.18rem;
+    letter-spacing: 0;
+  }
+
   .nav-user {
+    padding: 0.35rem;
+    border: none;
+    background: transparent;
+    box-shadow: none;
     justify-content: space-between;
   }
 
   .nav-user-copy {
-    align-items: flex-start;
+    display: none;
   }
 
   .main-content {
-    border-radius: 24px;
-    padding: 1.2rem;
+    border-radius: 22px;
+    margin-top: 0;
+    padding: 1rem;
+    width: 100%;
   }
 
   .tab-shell {
-    padding-left: 0.75rem;
-    padding-right: 0.45rem;
+    display: none;
   }
 
-  .tab-nav,
   .os-tabs {
     overflow-x: auto;
     overflow-y: hidden;
@@ -1591,9 +1652,52 @@ textarea {
     -ms-overflow-style: none;
   }
 
-  .tab-nav::-webkit-scrollbar,
   .os-tabs::-webkit-scrollbar {
     display: none;
+  }
+
+  .mobile-bottom-nav {
+    position: fixed;
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(10px, env(safe-area-inset-bottom));
+    z-index: 70;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 0.25rem;
+    padding: 0.55rem;
+    border: 1px solid rgba(143, 167, 208, 0.58);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 18px 42px rgba(31, 65, 132, 0.18);
+    backdrop-filter: blur(16px);
+  }
+
+  .mobile-bottom-link {
+    display: flex;
+    min-width: 0;
+    min-height: 58px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.24rem;
+    border-radius: 18px;
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1.1;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .mobile-bottom-link svg {
+    flex-shrink: 0;
+  }
+
+  .mobile-bottom-link.active {
+    color: var(--primary-700);
+    background: rgba(47, 119, 255, 0.1);
   }
 
   .summary-grid,
@@ -1603,6 +1707,54 @@ textarea {
   .os-row.cols-3,
   .os-row.cols-3b {
     grid-template-columns: 1fr;
+  }
+
+  .summary-grid,
+  .content-grid,
+  .mini-stats-grid,
+  .action-grid,
+  .grid {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .summary-card,
+  .section-card,
+  .mini-stat-card,
+  .action-link-card,
+  .card {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .section-card {
+    padding: 1rem;
+  }
+
+  .section-title {
+    gap: 0.7rem;
+    margin-bottom: 1rem;
+  }
+
+  .section-title h3 {
+    font-size: 1.16rem;
+    letter-spacing: 0;
+  }
+
+  .section-subtitle {
+    font-size: 0.92rem;
+    line-height: 1.6;
+  }
+
+  .mini-stat-card {
+    border-radius: 16px;
+    padding: 1rem;
+  }
+
+  .mini-stat-card small,
+  .action-link-card span,
+  .page-subtitle {
+    overflow-wrap: anywhere;
   }
 
   .user-role-editor {
@@ -1652,6 +1804,11 @@ textarea {
 }
 
 @media (max-width: 640px) {
+  .layout {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
   .page-state,
   .auth-panel {
     padding: 1.2rem;
@@ -1668,5 +1825,18 @@ textarea {
   .card,
   .page-state-card {
     border-radius: 20px;
+  }
+
+  .page-title {
+    font-size: 1.75rem;
+    letter-spacing: 0;
+  }
+
+  .summary-card {
+    padding: 1rem;
+  }
+
+  .os-form-panel {
+    padding: 1rem;
   }
 }

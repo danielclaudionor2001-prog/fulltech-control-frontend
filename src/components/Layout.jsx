@@ -3,7 +3,7 @@ import React from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import {
   Building2,
-  ClipboardList,
+  Home,
   MapPin,
   Plus,
   ShieldCheck,
@@ -21,13 +21,16 @@ export default function Layout() {
     'Usuário';
   const tabs = isAdmin
     ? [
-        { icon: ClipboardList, label: 'OS', to: '/admin' },
+        { icon: Home, label: 'Início', to: '/admin' },
         { icon: Plus, label: 'Nova OS', to: '/admin/create' },
         { icon: MapPin, label: 'Mapa', to: '/admin/map' },
         { icon: Building2, label: 'Clientes', to: '/admin/customers' },
         { icon: ShieldCheck, label: 'Acessos', to: '/admin/access' },
       ]
-    : [{ icon: ClipboardList, label: 'Minhas OS', to: '/tech' }];
+    : [
+        { icon: Home, label: 'Início', to: '/tech' },
+        { icon: Plus, label: 'Nova OS', to: '/tech/create' },
+      ];
 
   const isTabActive = (to) => {
     if (to === '/admin' || to === '/tech') {
@@ -80,6 +83,23 @@ export default function Layout() {
       <main className="main-content">
         <Outlet />
       </main>
+
+      <nav className="mobile-bottom-nav" aria-label="Navegação principal mobile">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+
+          return (
+            <Link
+              key={tab.to}
+              to={tab.to}
+              className={`mobile-bottom-link ${isTabActive(tab.to) ? 'active' : ''}`.trim()}
+            >
+              <Icon size={24} />
+              <span>{tab.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 }

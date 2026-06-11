@@ -4,6 +4,7 @@ import { MailPlus, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import ModalShell from '../components/ModalShell';
 import SelectField from '../components/SelectField';
 import SkeletonBlock from '../components/SkeletonBlock';
+import { useAppAuth } from '../auth/useAppAuth';
 import {
   createAllowedEmail,
   getAccessList,
@@ -31,6 +32,7 @@ const formatDateTime = (dateLike) => {
 
 export default function AccessListPage() {
   const { getToken } = useAuth();
+  const { appUser } = useAppAuth();
   const [allowedEmails, setAllowedEmails] = useState([]);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('TECH');
@@ -48,6 +50,33 @@ export default function AccessListPage() {
     () => [...allowedEmails].sort((left, right) => left.email.localeCompare(right.email)),
     [allowedEmails],
   );
+
+  const accessRows = useMemo(() => {
+    const currentEmail = appUser?.email?.trim().toLowerCase();
+    const rows = sortedAllowedEmails.map((allowedEmail) => ({
+      ...allowedEmail,
+      isCurrentUser:
+        Boolean(currentEmail) &&
+        allowedEmail.email.trim().toLowerCase() === currentEmail,
+    }));
+
+    if (!appUser?.email || rows.some((row) => row.isCurrentUser)) {
+      return rows;
+    }
+
+    return [
+      {
+        createdAt: null,
+        email: appUser.email,
+        id: `current-user-${appUser.id}`,
+        isCurrentUser: true,
+        isSyntheticCurrentUser: true,
+        role: appUser.role,
+        updatedAt: null,
+      },
+      ...rows,
+    ];
+  }, [appUser, sortedAllowedEmails]);
 
   const fetchAllowedEmails = useCallback(async () => {
     setLoading(true);
@@ -235,7 +264,7 @@ export default function AccessListPage() {
               </table>
             </div>
           </div>
-        ) : sortedAllowedEmails.length === 0 ? (
+        ) : accessRows.length === 0 ? (
           <div className="table-empty">Nenhum e-mail autorizado ainda.</div>
         ) : (
           <div className="data-table-shell">
@@ -252,24 +281,29 @@ export default function AccessListPage() {
                 </thead>
 
                 <tbody>
-                  {sortedAllowedEmails.map((allowedEmail) => {
+                  {accessRows.map((allowedEmail) => {
                     const currentDraftRole =
                       roleDrafts[allowedEmail.id] || allowedEmail.role;
                     const isBusy = busyAllowedEmailId === allowedEmail.id;
+                    const isCurrentUser = Boolean(allowedEmail.isCurrentUser);
 
                     return (
                       <tr key={allowedEmail.id}>
                         <td>
                           <div className="table-primary-cell">
                             <strong>{allowedEmail.email}</strong>
-                            <small>ID: {allowedEmail.id.slice(0, 8)}</small>
+                            <small>
+                              {isCurrentUser
+                                ? 'Seu usuário atual'
+                                : `ID: ${allowedEmail.id.slice(0, 8)}`}
+                            </small>
                           </div>
                         </td>
                         <td>
                           <SelectField
                             buttonClassName="table-select-trigger"
                             className="table-select"
-                            disabled={isBusy}
+                            disabled={isBusy || isCurrentUser}
                             onChange={(nextRole) =>
                               setRoleDrafts((previous) => ({
                                 ...previous,
@@ -286,7 +320,11 @@ export default function AccessListPage() {
                           <div className="table-actions">
                             <button
                               className="btn btn-secondary btn-compact"
-                              disabled={isBusy || currentDraftRole === allowedEmail.role}
+                              disabled={
+                                isBusy ||
+                                isCurrentUser ||
+                                currentDraftRole === allowedEmail.role
+                              }
                               onClick={() => void handleSaveRole(allowedEmail)}
                               type="button"
                             >
@@ -295,7 +333,7 @@ export default function AccessListPage() {
 
                             <button
                               className="btn btn-outline btn-compact"
-                              disabled={isBusy}
+                              disabled={isBusy || isCurrentUser}
                               onClick={() => void handleDelete(allowedEmail.id)}
                               type="button"
                             >

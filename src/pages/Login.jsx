@@ -12,9 +12,9 @@ export default function Login() {
   if (!isLoaded || status === 'loading') {
     return (
       <div className="page-state">
-        <div className="page-state-card">
+        <div className="page-state-card page-state-card-compact">
+          <div className="session-spinner" aria-hidden />
           <h1>Fulltech Control</h1>
-          <p>Validando sua sessão...</p>
         </div>
       </div>
     );

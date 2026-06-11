@@ -3,7 +3,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FolderKanban, MapPin, Paperclip, UserPlus, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import SelectField from '../components/SelectField';
-import { createServiceOrder, getCustomers } from '../services/api';
+import { useAppAuth } from '../auth/useAppAuth';
+import { createServiceOrder, getCustomers, getUsers } from '../services/api';
 
 const ORDER_TYPE_OPTIONS = [
   { label: 'Instalação', value: 'instalacao' },
@@ -31,17 +32,21 @@ const getTodayInputValue = () => {
 
 export default function OSForm() {
   const { getToken } = useAuth();
+  const { appUser } = useAppAuth();
   const navigate = useNavigate();
   const customerAutocompleteRef = useRef(null);
   const [customers, setCustomers] = useState([]);
+  const [assignableUsers, setAssignableUsers] = useState([]);
   const [activeTab, setActiveTab] = useState('geral');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCustomerMenuOpen, setIsCustomerMenuOpen] = useState(false);
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const isAdmin = appUser?.role === 'ADMIN';
 
   const [formData, setFormData] = useState({
     address: '',
-    collaborator: '',
+    assignedToId: '',
     customer: '',
     customerId: '',
     deadline: '',
@@ -54,17 +59,44 @@ export default function OSForm() {
   });
 
   const fetchCustomers = useCallback(async () => {
+    if (!isAdmin) {
+      setCustomers([]);
+      return;
+    }
+
     try {
       const data = await getCustomers(getToken);
       setCustomers(data);
     } catch (error) {
       console.error('Failed to fetch customers', error);
     }
-  }, [getToken]);
+  }, [getToken, isAdmin]);
 
   useEffect(() => {
     void fetchCustomers();
   }, [fetchCustomers]);
+
+  const fetchAssignableUsers = useCallback(async () => {
+    if (!isAdmin) {
+      setAssignableUsers([]);
+      return;
+    }
+
+    setIsUsersLoading(true);
+
+    try {
+      const data = await getUsers(getToken);
+      setAssignableUsers(data);
+    } catch (error) {
+      console.error('Failed to fetch assignable users', error);
+    } finally {
+      setIsUsersLoading(false);
+    }
+  }, [getToken, isAdmin]);
+
+  useEffect(() => {
+    void fetchAssignableUsers();
+  }, [fetchAssignableUsers]);
 
   const descriptionCount = formData.description.length;
   const filteredCustomers = useMemo(() => {
@@ -79,6 +111,22 @@ export default function OSForm() {
       return searchableText.includes(query);
     });
   }, [customers, formData.customer]);
+
+  const assignableUserOptions = useMemo(
+    () => [
+      { label: 'Sem responsável definido', value: '' },
+      ...assignableUsers.filter((user) => user.isActive).map((user) => {
+        const name = user.name || user.email || user.clerkUserId;
+        const roleLabel = user.role === 'ADMIN' ? 'Administrador' : 'Técnico';
+
+        return {
+          label: `${name} (${roleLabel})`,
+          value: user.id,
+        };
+      }),
+    ],
+    [assignableUsers],
+  );
 
   useEffect(() => {
     const handlePointerDown = (event) => {
@@ -106,6 +154,8 @@ export default function OSForm() {
     [formData],
   );
 
+  const returnPath = isAdmin ? '/admin' : '/tech';
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!canSubmit || isSubmitting) return;
@@ -115,7 +165,7 @@ export default function OSForm() {
 
     try {
       await createServiceOrder(formData, getToken);
-      navigate('/admin');
+      navigate(returnPath);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Falha ao criar a OS.';
@@ -167,7 +217,7 @@ export default function OSForm() {
           </p>
         </div>
 
-        <button className="btn btn-secondary" onClick={() => navigate('/admin')} type="button">
+        <button className="btn btn-secondary" onClick={() => navigate(returnPath)} type="button">
           <X size={18} />
           Fechar
         </button>
@@ -252,7 +302,12 @@ export default function OSForm() {
               </div>
 
               <div className="os-row cols-1 os-client-row">
-                <div className="os-field os-client-field" ref={customerAutocompleteRef}>
+                <div
+                  className={`os-field os-client-field ${
+                    isAdmin ? '' : 'os-client-field-full'
+                  }`.trim()}
+                  ref={customerAutocompleteRef}
+                >
                   <label className="simple-form-field">
                     <span>Cliente *</span>
                     <input
@@ -295,14 +350,16 @@ export default function OSForm() {
                   ) : null}
                 </div>
 
-                <button
-                  type="button"
-                  className="os-client-action"
-                  onClick={() => navigate('/admin/customers')}
-                  aria-label="Cadastrar cliente"
-                >
-                  <UserPlus size={20} />
-                </button>
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    className="os-client-action"
+                    onClick={() => navigate('/admin/customers')}
+                    aria-label="Cadastrar cliente"
+                  >
+                    <UserPlus size={20} />
+                  </button>
+                ) : null}
               </div>
 
               <label className="simple-form-field os-textarea-wrap">
@@ -358,19 +415,29 @@ export default function OSForm() {
                 </label>
               </div>
 
-              <div className="os-row cols-1">
-                <label className="simple-form-field">
-                  <span>Colaborador</span>
-                  <input
-                    className="form-control"
-                    type="text"
-                    name="collaborator"
-                    value={formData.collaborator}
-                    onChange={handleChange}
-                    placeholder="Nome do contato ou solicitante"
-                  />
-                </label>
-              </div>
+              {isAdmin ? (
+                <div className="os-row cols-1">
+                  <label className="simple-form-field">
+                    <span>Responsável pela OS</span>
+                    <SelectField
+                      disabled={isUsersLoading}
+                      options={assignableUserOptions}
+                      onChange={(value) =>
+                        setFormData((previous) => ({
+                          ...previous,
+                          assignedToId: value,
+                        }))
+                      }
+                      placeholder={
+                        isUsersLoading
+                          ? 'Carregando usuários...'
+                          : 'Selecione um usuário'
+                      }
+                      value={formData.assignedToId}
+                    />
+                  </label>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -424,7 +491,7 @@ export default function OSForm() {
           <div className="os-actions">
             <button
               className="btn btn-secondary"
-              onClick={() => navigate('/admin')}
+              onClick={() => navigate(returnPath)}
               type="button"
             >
               Cancelar

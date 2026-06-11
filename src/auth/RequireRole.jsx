@@ -17,8 +17,8 @@ export default function RequireRole({ allowedRoles, children }) {
   if (!isLoaded || status === 'loading') {
     return (
       <FullPageState>
+        <div className="session-spinner" aria-hidden />
         <h2>Carregando acesso...</h2>
-        <p>Validando a sua sessão e preparando o painel.</p>
       </FullPageState>
     );
   }

@@ -17,17 +17,12 @@ export default function SelectField({
   const panelRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState(null);
+  const isPanelOpen = isOpen && !disabled;
 
   const selectedOption = useMemo(
     () => options.find((option) => option.value === value) || null,
     [options, value],
   );
-
-  useEffect(() => {
-    if (disabled) {
-      setIsOpen(false);
-    }
-  }, [disabled]);
 
   useEffect(() => {
     const handlePointerDown = (event) => {
@@ -44,8 +39,7 @@ export default function SelectField({
   }, []);
 
   useEffect(() => {
-    if (!isOpen) {
-      setPanelStyle(null);
+    if (!isPanelOpen) {
       return undefined;
     }
 
@@ -94,14 +88,14 @@ export default function SelectField({
       window.removeEventListener('resize', updatePanelPosition);
       window.removeEventListener('scroll', updatePanelPosition, true);
     };
-  }, [isOpen, options.length]);
+  }, [isPanelOpen, options.length]);
 
   const handleSelect = (nextValue) => {
     setIsOpen(false);
     onChange?.(nextValue);
   };
 
-  const panel = isOpen && panelStyle && typeof document !== 'undefined'
+  const panel = isPanelOpen && panelStyle && typeof document !== 'undefined'
     ? createPortal(
         <div
           className={`select-panel is-floating ${menuClassName}`.trim()}

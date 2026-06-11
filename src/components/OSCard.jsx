@@ -93,16 +93,15 @@ export default function OSCard({
       </div>
 
       <div className="os-card-actions">
-        {isTechnician && !os.assignedToId && os.status === 'OPEN' && onClaim ? (
+        {isTechnician && os.status === 'OPEN' && onClaim ? (
           <button className="btn btn-primary" onClick={() => onClaim(os.id)}>
-            Assumir OS
+            {os.assignedToId ? 'Iniciar OS' : 'Assumir OS'}
           </button>
         ) : null}
 
         {isTechnician &&
         os.assignedToId &&
-        os.status !== 'DONE' &&
-        os.status !== 'CANCELED' &&
+        os.status === 'IN_PROGRESS' &&
         onStatusUpdate ? (
           <button
             className="btn btn-primary"

@@ -22,6 +22,19 @@ function normalizeAccessError(error) {
   }
 
   if (
+    normalized.includes('first and last name') ||
+    normalized.includes('nome e sobrenome') ||
+    normalized.includes('complete first') ||
+    normalized.includes('complete seu perfil')
+  ) {
+    return {
+      message:
+        'Complete nome e sobrenome no cadastro do Clerk antes de acessar o sistema.',
+      status: 'error',
+    };
+  }
+
+  if (
     normalized.includes('pending approval') ||
     normalized.includes('inactive') ||
     normalized.includes('403') ||

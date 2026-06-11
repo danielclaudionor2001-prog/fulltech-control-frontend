@@ -64,6 +64,14 @@ function App() {
             </RequireRole>
           )}
         />
+        <Route
+          path="/tech/create"
+          element={(
+            <RequireRole allowedRoles={['TECH']}>
+              <OSForm />
+            </RequireRole>
+          )}
+        />
       </Route>
     </Routes>
   );

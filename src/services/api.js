@@ -43,7 +43,7 @@ const normalizeServiceOrder = (order) => ({
 
 const toCreatePayload = (formData) => ({
   address: formData.address || undefined,
-  collaborator: formData.collaborator || undefined,
+  assignedToId: formData.assignedToId || undefined,
   customer: formData.customer,
   deadline: formData.deadline || undefined,
   description: formData.description,
