@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import OSCard from '../components/OSCard';
+import OSLifecycleLegend from '../components/OSLifecycleLegend';
 import SelectField from '../components/SelectField';
 import SkeletonBlock from '../components/SkeletonBlock';
 import {
@@ -105,8 +106,8 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleMarkInProgress = async (id) => {
-    await updateServiceOrder(id, { status: 'IN_PROGRESS' }, getToken);
+  const handleStatusUpdate = async (id, status) => {
+    await updateServiceOrder(id, { status }, getToken);
     await fetchDashboard();
   };
 
@@ -207,13 +208,13 @@ export default function AdminDashboard() {
               <small>Com técnico em atendimento</small>
             </div>
             <div className="mini-stat-card">
-              <span>Entregues</span>
+              <span>Finalizadas</span>
               {isInitialLoading ? (
                 <SkeletonBlock className="skeleton-number" />
               ) : (
                 <strong>{doneOrders.length}</strong>
               )}
-              <small>Ordens já concluídas</small>
+              <small>Ordens ja finalizadas</small>
             </div>
             <div className="mini-stat-card mini-stat-card-alert">
               <span>Canceladas</span>
@@ -345,7 +346,7 @@ export default function AdminDashboard() {
         </section>
       </div>
 
-      <section className="section-card section-card-orders">
+      <section className="section-card section-card-orders mobile-orders-first">
         <div className="section-title">
           <CheckCircle2 size={18} />
           <div>
@@ -355,6 +356,8 @@ export default function AdminDashboard() {
             </p>
           </div>
         </div>
+
+        <OSLifecycleLegend />
 
         {isInitialLoading ? (
           <div className="grid">
@@ -382,7 +385,7 @@ export default function AdminDashboard() {
               <OSCard
                 key={os.id}
                 isTechnician={false}
-                onAssign={handleMarkInProgress}
+                onStatusUpdate={handleStatusUpdate}
                 os={os}
               />
             ))}

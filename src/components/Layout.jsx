@@ -18,17 +18,17 @@ export default function Layout() {
     appUser?.name ||
     clerkUser?.fullName ||
     clerkUser?.primaryEmailAddress?.emailAddress ||
-    'Usuário';
+    'Usuario';
   const tabs = isAdmin
     ? [
-        { icon: Home, label: 'Início', to: '/admin' },
+        { icon: Home, label: 'Inicio', to: '/admin' },
         { icon: Plus, label: 'Nova OS', to: '/admin/create' },
         { icon: MapPin, label: 'Mapa', to: '/admin/map' },
         { icon: Building2, label: 'Clientes', to: '/admin/customers' },
         { icon: ShieldCheck, label: 'Acessos', to: '/admin/access' },
       ]
     : [
-        { icon: Home, label: 'Início', to: '/tech' },
+        { icon: Home, label: 'Inicio', to: '/tech' },
         { icon: Plus, label: 'Nova OS', to: '/tech/create' },
       ];
 
@@ -44,7 +44,13 @@ export default function Layout() {
     <div className="layout">
       <header className="topbar">
         <Link to={isAdmin ? '/admin' : '/tech'} className="brand">
-          <span className="brand-kicker">Operação</span>
+          <img
+            alt=""
+            aria-hidden="true"
+            className="brand-symbol"
+            src="/brand/fulltech-symbol.png"
+          />
+          <span className="brand-kicker">Operacao</span>
           <strong className="brand-title">Fulltech Control</strong>
         </Link>
 
@@ -53,7 +59,7 @@ export default function Layout() {
             <div className="nav-user-copy">
               <span className="nav-user-name">{displayName}</span>
               <span className="nav-user-role">
-                {isAdmin ? 'Administrador' : 'Técnico'}
+                {isAdmin ? 'Administrador' : 'Tecnico'}
               </span>
             </div>
             <UserButton afterSignOutUrl="/" />
@@ -62,7 +68,7 @@ export default function Layout() {
       </header>
 
       <div className="tab-shell">
-        <nav className="tab-nav" aria-label="Navegação principal">
+        <nav className="tab-nav" aria-label="Navegacao principal">
           {tabs.map((tab) => {
             const Icon = tab.icon;
 
@@ -84,7 +90,7 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <nav className="mobile-bottom-nav" aria-label="Navegação principal mobile">
+      <nav className="mobile-bottom-nav" aria-label="Navegacao principal mobile">
         {tabs.map((tab) => {
           const Icon = tab.icon;
 

@@ -1,13 +1,8 @@
+import { getServiceOrderStatusLabel } from '../utils/serviceOrderStatus';
+
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 ).replace(/\/$/, '');
-
-const STATUS_TO_UI = {
-  CANCELED: 'Cancelado',
-  DONE: 'Concluído',
-  IN_PROGRESS: 'Em Andamento',
-  OPEN: 'Pendente',
-};
 
 const request = async (path, options = {}) => {
   const { body, getToken, headers, ...fetchOptions } = options;
@@ -37,7 +32,7 @@ const request = async (path, options = {}) => {
 
 const normalizeServiceOrder = (order) => ({
   ...order,
-  statusLabel: STATUS_TO_UI[order.status] || order.status,
+  statusLabel: getServiceOrderStatusLabel(order.status),
   technicianId: order.assignedToId ?? null,
 });
 
@@ -54,8 +49,7 @@ const toCreatePayload = (formData) => ({
   scheduleTime: formData.scheduleTime || undefined,
 });
 
-export const getCurrentUser = (getToken) =>
-  request('/users/me', { getToken });
+export const getCurrentUser = (getToken) => request('/users/me', { getToken });
 
 export const getUsers = (getToken) => request('/users', { getToken });
 
@@ -145,5 +139,4 @@ export const updateLocation = (lat, lng, getToken) =>
     method: 'POST',
   });
 
-export const getLocations = (getToken) =>
-  request('/locations', { getToken });
+export const getLocations = (getToken) => request('/locations', { getToken });

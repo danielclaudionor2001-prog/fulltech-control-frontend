@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { CircleAlert, MapPin, RefreshCw } from 'lucide-react';
 import OSCard from '../components/OSCard';
+import OSLifecycleLegend from '../components/OSLifecycleLegend';
 import SkeletonBlock from '../components/SkeletonBlock';
 import {
   getServiceOrders,
@@ -232,7 +233,7 @@ export default function TechnicianDashboard() {
             <small>Chamados abertos aguardando aceite</small>
           </div>
           <div className="summary-card summary-card-amber">
-            <span className="summary-label">Concluídas</span>
+            <span className="summary-label">Finalizadas</span>
             {isInitialLoading ? (
               <SkeletonBlock className="skeleton-number" />
             ) : (
@@ -245,18 +246,20 @@ export default function TechnicianDashboard() {
 
       {locationError ? <div className="inline-error">{locationError}</div> : null}
 
-      <div className="content-grid content-grid-dashboard">
-        <section className="section-card">
+      <div className="content-grid content-grid-dashboard mobile-orders-first">
+        <section className="section-card section-card-orders">
           <div className="section-title">
             <MapPin size={18} />
             <div>
               <h3>Minhas ordens</h3>
               <p className="section-subtitle">
-                Acompanhe o que já está no seu nome e finalize os atendimentos
-                concluídos.
+                Acompanhe o que ja esta no seu nome e finalize os atendimentos
+                encerrados.
               </p>
             </div>
           </div>
+
+          <OSLifecycleLegend />
 
           {isInitialLoading ? (
             <div className="grid">
