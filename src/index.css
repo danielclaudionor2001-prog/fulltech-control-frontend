@@ -751,6 +751,11 @@ textarea {
   backdrop-filter: blur(10px);
 }
 
+.select-panel.is-floating {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
 .select-option {
   display: flex;
   align-items: center;
