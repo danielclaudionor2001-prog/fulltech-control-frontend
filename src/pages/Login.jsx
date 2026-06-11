@@ -76,19 +76,11 @@ export default function Login() {
       <div className="auth-panel auth-copy">
         <span className="auth-badge">Operação conectada</span>
         <h1>Fulltech Control</h1>
-        <p>
-          Uma entrada única para administração, despacho, acompanhamento em
-          campo e controle de ordens de serviço.
-        </p>
 
         <div className="auth-highlights">
           <div className="auth-highlight">
             <ShieldCheck size={18} />
             <span>Acesso controlado por perfil e por e-mail autorizado</span>
-          </div>
-          <div className="auth-highlight">
-            <Wrench size={18} />
-            <span>Fluxo simples para administrador e técnico no mesmo sistema</span>
           </div>
         </div>
       </div>
