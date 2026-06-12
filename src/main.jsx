@@ -13,12 +13,35 @@ if (!clerkPublishableKey) {
   throw new Error('VITE_CLERK_PUBLISHABLE_KEY is required');
 }
 
+const clerkLocalization = {
+  ...ptBR,
+  signUp: {
+    ...ptBR.signUp,
+    continue: {
+      ...ptBR.signUp?.continue,
+      actionLink: 'Entrar',
+      actionText: 'Ja possui uma conta?',
+      subtitle: 'para continuar no Fulltech Control',
+      title: 'Preencha os campos ausentes',
+    },
+    start: {
+      ...ptBR.signUp?.start,
+      actionLink: 'Entrar',
+      actionText: 'Ja possui uma conta?',
+      subtitle: 'para continuar no Fulltech Control',
+      subtitleCombined: 'para continuar no Fulltech Control',
+      title: 'Criar sua conta',
+      titleCombined: 'Criar sua conta',
+    },
+  },
+};
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ClerkProvider
       publishableKey={clerkPublishableKey}
       afterSignOutUrl="/"
-      localization={ptBR}
+      localization={clerkLocalization}
     >
       <BrowserRouter>
         <AppAuthProvider>
