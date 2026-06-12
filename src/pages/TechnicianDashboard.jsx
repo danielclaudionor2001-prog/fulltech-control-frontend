@@ -1,16 +1,17 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { CircleAlert, MapPin, RefreshCw } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAppAuth } from '../auth/useAppAuth';
+import ButtonSpinner from '../components/ButtonSpinner';
 import OSCard from '../components/OSCard';
-import OSLifecycleLegend from '../components/OSLifecycleLegend';
 import SkeletonBlock from '../components/SkeletonBlock';
+import { useToast } from '../components/ToastProvider';
 import {
   getServiceOrders,
   startServiceOrder,
   updateLocation,
   updateServiceOrder,
 } from '../services/api';
-import { useAppAuth } from '../auth/useAppAuth';
 
 function getCurrentPosition() {
   return new Promise((resolve, reject) => {
@@ -30,28 +31,36 @@ function getCurrentPosition() {
 export default function TechnicianDashboard() {
   const { getToken } = useAuth();
   const { appUser } = useAppAuth();
+  const { showError, showSuccess, showWarning } = useToast();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [locationState, setLocationState] = useState('checking');
   const [locationError, setLocationError] = useState('');
+  const [busyOrderId, setBusyOrderId] = useState('');
+  const [busyOrderAction, setBusyOrderAction] = useState('');
+  const [pageError, setPageError] = useState('');
 
   const isInitialLoading = loading && orders.length === 0;
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
+    setPageError('');
 
     try {
       const data = await getServiceOrders(getToken);
       setOrders(data);
     } catch (error) {
       console.error('Failed to fetch orders', error);
+      setPageError('Não foi possível carregar as ordens agora.');
+      throw error;
     } finally {
       setLoading(false);
     }
   }, [getToken]);
 
   useEffect(() => {
-    void fetchOrders();
+    void fetchOrders().catch(() => {});
   }, [fetchOrders]);
 
   useEffect(() => {
@@ -138,8 +147,23 @@ export default function TechnicianDashboard() {
     [myOrders],
   );
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+
+    try {
+      await fetchOrders();
+      showSuccess('Painel atualizado com sucesso.');
+    } catch {
+      showError('Não foi possível atualizar o painel agora.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const handleClaim = async (id) => {
     try {
+      setBusyOrderId(id);
+      setBusyOrderAction('claim');
       setLocationError('');
       const position = await getCurrentPosition();
       setLocationState('granted');
@@ -152,18 +176,35 @@ export default function TechnicianDashboard() {
       );
 
       await fetchOrders();
+      showSuccess('Atendimento iniciado com sucesso.');
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : 'Você precisa permitir a localização para iniciar o atendimento.';
       setLocationError(message);
+      showWarning(message);
+    } finally {
+      setBusyOrderId('');
+      setBusyOrderAction('');
     }
   };
 
   const handleStatusUpdate = async (id, status) => {
-    await updateServiceOrder(id, { status }, getToken);
-    await fetchOrders();
+    setBusyOrderId(id);
+    setBusyOrderAction(status === 'DONE' ? 'done' : 'progress');
+
+    try {
+      await updateServiceOrder(id, { status }, getToken);
+      await fetchOrders();
+      showSuccess('Ordem de serviço atualizada.');
+    } catch (error) {
+      console.error('Failed to update service order', error);
+      showError('Não foi possível atualizar a OS agora.');
+    } finally {
+      setBusyOrderId('');
+      setBusyOrderAction('');
+    }
   };
 
   const locationBadgeLabel =
@@ -194,12 +235,13 @@ export default function TechnicianDashboard() {
 
             <button
               className="btn btn-secondary"
-              onClick={() => void fetchOrders()}
+              disabled={refreshing}
+              onClick={() => void handleRefresh()}
               title="Atualizar"
               type="button"
             >
-              <RefreshCw size={20} />
-              Atualizar
+              {refreshing ? <ButtonSpinner /> : <RefreshCw size={20} />}
+              {refreshing ? 'Atualizando...' : 'Atualizar'}
             </button>
           </div>
         </div>
@@ -244,6 +286,7 @@ export default function TechnicianDashboard() {
         </div>
       </section>
 
+      {pageError ? <div className="inline-error">{pageError}</div> : null}
       {locationError ? <div className="inline-error">{locationError}</div> : null}
 
       <div className="content-grid content-grid-dashboard mobile-orders-first">
@@ -253,13 +296,11 @@ export default function TechnicianDashboard() {
             <div>
               <h3>Minhas ordens</h3>
               <p className="section-subtitle">
-                Acompanhe o que ja esta no seu nome e finalize os atendimentos
+                Acompanhe o que já está no seu nome e finalize os atendimentos
                 encerrados.
               </p>
             </div>
           </div>
-
-          <OSLifecycleLegend />
 
           {isInitialLoading ? (
             <div className="grid">
@@ -285,6 +326,7 @@ export default function TechnicianDashboard() {
             <div className="grid">
               {myOrders.map((os) => (
                 <OSCard
+                  busyAction={busyOrderId === os.id ? busyOrderAction : ''}
                   key={os.id}
                   isTechnician
                   onClaim={handleClaim}
@@ -311,7 +353,10 @@ export default function TechnicianDashboard() {
           {isInitialLoading ? (
             <div className="grid">
               {Array.from({ length: 2 }).map((_, index) => (
-                <div className="skeleton-card" key={`available-orders-skeleton-${index}`}>
+                <div
+                  className="skeleton-card"
+                  key={`available-orders-skeleton-${index}`}
+                >
                   <div className="skeleton-card-stack">
                     <SkeletonBlock className="skeleton-chip" />
                     <SkeletonBlock className="skeleton-title" />
@@ -332,6 +377,7 @@ export default function TechnicianDashboard() {
             <div className="grid">
               {availableOrders.map((os) => (
                 <OSCard
+                  busyAction={busyOrderId === os.id ? busyOrderAction : ''}
                   key={os.id}
                   isTechnician
                   onClaim={handleClaim}

@@ -4,6 +4,28 @@ const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'
 ).replace(/\/$/, '');
 
+const getErrorMessage = (text, status) => {
+  if (!text) {
+    return `Request failed with status ${status}`;
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+
+    if (typeof parsed?.message === 'string' && parsed.message.trim()) {
+      return parsed.message;
+    }
+
+    if (Array.isArray(parsed?.message) && parsed.message.length > 0) {
+      return parsed.message.join(', ');
+    }
+  } catch {
+    return text;
+  }
+
+  return text;
+};
+
 const request = async (path, options = {}) => {
   const { body, getToken, headers, ...fetchOptions } = options;
   const token = getToken ? await getToken() : null;
@@ -20,7 +42,7 @@ const request = async (path, options = {}) => {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Request failed with status ${response.status}`);
+    throw new Error(getErrorMessage(text, response.status));
   }
 
   if (response.status === 204) {

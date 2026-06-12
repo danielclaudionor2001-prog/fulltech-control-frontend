@@ -1,9 +1,18 @@
 import { useAuth } from '@clerk/clerk-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FolderKanban, MapPin, Paperclip, UserPlus, X } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  FolderKanban,
+  MapPin,
+  Paperclip,
+  UserPlus,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import SelectField from '../components/SelectField';
 import { useAppAuth } from '../auth/useAppAuth';
+import ButtonSpinner from '../components/ButtonSpinner';
+import SelectField from '../components/SelectField';
+import { useToast } from '../components/ToastProvider';
 import { createServiceOrder, getCustomers, getUsers } from '../services/api';
 
 const ORDER_TYPE_OPTIONS = [
@@ -30,18 +39,47 @@ const getTodayInputValue = () => {
   return `${year}-${month}-${day}`;
 };
 
+const getMissingFields = (formData) => {
+  const missingFields = [];
+
+  if (!formData.osType) {
+    missingFields.push('tipo de OS');
+  }
+
+  if (!formData.customer.trim()) {
+    missingFields.push('cliente');
+  }
+
+  if (!formData.description.trim()) {
+    missingFields.push('descrição');
+  }
+
+  if (!formData.durationMinutes) {
+    missingFields.push('duração estimada');
+  }
+
+  if (!formData.scheduleDate) {
+    missingFields.push('data do agendamento');
+  }
+
+  return missingFields;
+};
+
 export default function OSForm() {
   const { getToken } = useAuth();
   const { appUser } = useAppAuth();
+  const { showError, showSuccess, showWarning } = useToast();
   const navigate = useNavigate();
   const customerAutocompleteRef = useRef(null);
+  const tabsRef = useRef(null);
   const [customers, setCustomers] = useState([]);
   const [assignableUsers, setAssignableUsers] = useState([]);
   const [activeTab, setActiveTab] = useState('geral');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCustomerMenuOpen, setIsCustomerMenuOpen] = useState(false);
   const [isUsersLoading, setIsUsersLoading] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const [showTabsLeftHint, setShowTabsLeftHint] = useState(false);
+  const [showTabsRightHint, setShowTabsRightHint] = useState(false);
   const isAdmin = appUser?.role === 'ADMIN';
 
   const [formData, setFormData] = useState({
@@ -98,7 +136,45 @@ export default function OSForm() {
     void fetchAssignableUsers();
   }, [fetchAssignableUsers]);
 
+  const syncTabsHint = useCallback(() => {
+    const tabsElement = tabsRef.current;
+    if (!tabsElement) {
+      setShowTabsLeftHint(false);
+      setShowTabsRightHint(false);
+      return;
+    }
+
+    const hasOverflow = tabsElement.scrollWidth - tabsElement.clientWidth > 12;
+    const reachedStart = tabsElement.scrollLeft <= 12;
+    const reachedEnd =
+      tabsElement.scrollLeft + tabsElement.clientWidth >= tabsElement.scrollWidth - 12;
+
+    setShowTabsLeftHint(hasOverflow && !reachedStart);
+    setShowTabsRightHint(hasOverflow && !reachedEnd);
+  }, []);
+
+  useEffect(() => {
+    const tabsElement = tabsRef.current;
+    if (!tabsElement) {
+      return undefined;
+    }
+
+    syncTabsHint();
+
+    const handleScroll = () => syncTabsHint();
+    const handleResize = () => syncTabsHint();
+
+    tabsElement.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      tabsElement.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [syncTabsHint]);
+
   const descriptionCount = formData.description.length;
+
   const filteredCustomers = useMemo(() => {
     const query = formData.customer.trim().toLowerCase();
 
@@ -142,34 +218,33 @@ export default function OSForm() {
     };
   }, []);
 
-  const canSubmit = useMemo(
-    () =>
-      Boolean(
-        formData.osType &&
-          formData.customer &&
-          formData.description &&
-          formData.durationMinutes &&
-          formData.scheduleDate,
-      ),
-    [formData],
-  );
-
   const returnPath = isAdmin ? '/admin' : '/tech';
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!canSubmit || isSubmitting) return;
 
-    setSubmitError('');
+    const missingFields = getMissingFields(formData);
+    if (missingFields.length > 0) {
+      showWarning(
+        `Preencha os campos obrigatórios: ${missingFields.join(', ')}.`,
+      );
+      return;
+    }
+
+    if (isSubmitting) {
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       await createServiceOrder(formData, getToken);
+      showSuccess('Ordem de serviço criada com sucesso.');
       navigate(returnPath);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Falha ao criar a OS.';
-      setSubmitError(message);
+      showError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -205,22 +280,20 @@ export default function OSForm() {
     setIsCustomerMenuOpen(false);
   };
 
+  const handleScrollTabs = (direction) => {
+    tabsRef.current?.scrollBy({
+      behavior: 'smooth',
+      left: direction === 'left' ? -180 : 180,
+    });
+  };
+
   return (
     <div className="dashboard-stack">
       <section className="page-hero">
         <div>
           <span className="page-eyebrow">Despacho</span>
           <h1 className="page-title">Nova ordem de serviço</h1>
-          <p className="page-subtitle">
-            Estruture a OS com cliente, janela de atendimento, prioridade e
-            local de execução sem sair do fluxo administrativo.
-          </p>
         </div>
-
-        <button className="btn btn-secondary" onClick={() => navigate(returnPath)} type="button">
-          <X size={18} />
-          Fechar
-        </button>
       </section>
 
       <section className="os-shell">
@@ -236,28 +309,58 @@ export default function OSForm() {
           </div>
         </div>
 
-        <div className="os-tabs">
-          <button
-            type="button"
-            className={`os-tab ${activeTab === 'geral' ? 'active' : ''}`}
-            onClick={() => setActiveTab('geral')}
+        <div className="os-tabs-shell">
+          <div
+            ref={tabsRef}
+            className={`os-tabs ${showTabsLeftHint ? 'has-left-hint' : ''} ${
+              showTabsRightHint ? 'has-right-hint' : ''
+            }`.trim()}
+            aria-label="Etapas da nova ordem de serviço"
           >
-            Geral
-          </button>
-          <button
-            type="button"
-            className={`os-tab ${activeTab === 'localizacao' ? 'active' : ''}`}
-            onClick={() => setActiveTab('localizacao')}
-          >
-            Localização
-          </button>
-          <button
-            type="button"
-            className={`os-tab ${activeTab === 'anexos' ? 'active' : ''}`}
-            onClick={() => setActiveTab('anexos')}
-          >
-            Anexos
-          </button>
+            <button
+              type="button"
+              className={`os-tab ${activeTab === 'geral' ? 'active' : ''}`}
+              onClick={() => setActiveTab('geral')}
+            >
+              Geral
+            </button>
+            <button
+              type="button"
+              className={`os-tab ${activeTab === 'localizacao' ? 'active' : ''}`}
+              onClick={() => setActiveTab('localizacao')}
+            >
+              Localização
+            </button>
+            <button
+              type="button"
+              className={`os-tab ${activeTab === 'anexos' ? 'active' : ''}`}
+              onClick={() => setActiveTab('anexos')}
+            >
+              Anexos
+            </button>
+          </div>
+
+          {showTabsLeftHint ? (
+            <button
+              aria-label="Mostrar abas anteriores"
+              className="os-tabs-mobile-hint is-left"
+              onClick={() => handleScrollTabs('left')}
+              type="button"
+            >
+              <ChevronLeft size={18} />
+            </button>
+          ) : null}
+
+          {showTabsRightHint ? (
+            <button
+              aria-label="Mostrar mais abas"
+              className="os-tabs-mobile-hint is-right"
+              onClick={() => handleScrollTabs('right')}
+              type="button"
+            >
+              <ChevronRight size={18} />
+            </button>
+          ) : null}
         </div>
 
         <form className="os-form" onSubmit={handleSubmit}>
@@ -268,21 +371,21 @@ export default function OSForm() {
                   <span>Identificador</span>
                   <input
                     className="form-control"
-                    type="text"
                     name="identifier"
-                    value={formData.identifier}
                     onChange={handleChange}
                     placeholder="Ex.: 24871"
+                    type="text"
+                    value={formData.identifier}
                   />
                 </label>
 
                 <label className="simple-form-field">
                   <span>Tipo de OS *</span>
                   <SelectField
-                    options={ORDER_TYPE_OPTIONS}
                     onChange={(value) =>
                       setFormData((previous) => ({ ...previous, osType: value }))
                     }
+                    options={ORDER_TYPE_OPTIONS}
                     placeholder="Selecione o tipo"
                     value={formData.osType}
                   />
@@ -291,10 +394,10 @@ export default function OSForm() {
                 <label className="simple-form-field">
                   <span>Prazo</span>
                   <SelectField
-                    options={DEADLINE_OPTIONS}
                     onChange={(value) =>
                       setFormData((previous) => ({ ...previous, deadline: value }))
                     }
+                    options={DEADLINE_OPTIONS}
                     placeholder="Sem prazo"
                     value={formData.deadline}
                   />
@@ -311,16 +414,15 @@ export default function OSForm() {
                   <label className="simple-form-field">
                     <span>Cliente *</span>
                     <input
-                      className="form-control"
-                      type="text"
-                      name="customer"
-                      required
                       autoComplete="off"
-                      value={formData.customer}
+                      className="form-control"
+                      name="customer"
                       onChange={handleCustomerChange}
-                      onFocus={() => setIsCustomerMenuOpen(true)}
                       onClick={() => setIsCustomerMenuOpen(true)}
+                      onFocus={() => setIsCustomerMenuOpen(true)}
                       placeholder="Digite para buscar clientes"
+                      type="text"
+                      value={formData.customer}
                     />
                   </label>
 
@@ -330,12 +432,12 @@ export default function OSForm() {
                         filteredCustomers.map((customer) => (
                           <button
                             key={customer.id}
-                            type="button"
                             className="os-autocomplete-item"
                             onMouseDown={(event) => {
                               event.preventDefault();
                               handleCustomerSelect(customer);
                             }}
+                            type="button"
                           >
                             <span>{customer.name}</span>
                             <small>{customer.address}</small>
@@ -352,10 +454,10 @@ export default function OSForm() {
 
                 {isAdmin ? (
                   <button
-                    type="button"
+                    aria-label="Cadastrar cliente"
                     className="os-client-action"
                     onClick={() => navigate('/admin/customers')}
-                    aria-label="Cadastrar cliente"
+                    type="button"
                   >
                     <UserPlus size={20} />
                   </button>
@@ -366,12 +468,11 @@ export default function OSForm() {
                 <span>Descrição da ordem de serviço *</span>
                 <textarea
                   className="os-textarea"
-                  name="description"
-                  placeholder="Descreva o que precisa ser feito, observações importantes e contexto do atendimento."
                   maxLength={5000}
-                  required
-                  value={formData.description}
+                  name="description"
                   onChange={handleChange}
+                  placeholder="Descreva o que precisa ser feito, observações importantes e contexto do atendimento."
+                  value={formData.description}
                 />
                 <div className="os-counter">{descriptionCount} / 5000</div>
               </label>
@@ -381,13 +482,12 @@ export default function OSForm() {
                   <span>Duração estimada (min) *</span>
                   <input
                     className="form-control"
-                    type="number"
                     min="1"
                     name="durationMinutes"
-                    required
-                    value={formData.durationMinutes}
                     onChange={handleChange}
                     placeholder="60"
+                    type="number"
+                    value={formData.durationMinutes}
                   />
                 </label>
 
@@ -395,11 +495,10 @@ export default function OSForm() {
                   <span>Data do agendamento *</span>
                   <input
                     className="form-control"
-                    type="date"
                     name="scheduleDate"
-                    required
-                    value={formData.scheduleDate}
                     onChange={handleChange}
+                    type="date"
+                    value={formData.scheduleDate}
                   />
                 </label>
 
@@ -407,10 +506,10 @@ export default function OSForm() {
                   <span>Hora do agendamento</span>
                   <input
                     className="form-control"
-                    type="time"
                     name="scheduleTime"
-                    value={formData.scheduleTime}
                     onChange={handleChange}
+                    type="time"
+                    value={formData.scheduleTime}
                   />
                 </label>
               </div>
@@ -421,13 +520,13 @@ export default function OSForm() {
                     <span>Responsável pela OS</span>
                     <SelectField
                       disabled={isUsersLoading}
-                      options={assignableUserOptions}
                       onChange={(value) =>
                         setFormData((previous) => ({
                           ...previous,
                           assignedToId: value,
                         }))
                       }
+                      options={assignableUserOptions}
                       placeholder={
                         isUsersLoading
                           ? 'Carregando usuários...'
@@ -448,8 +547,8 @@ export default function OSForm() {
                 <div>
                   <strong>Endereço do atendimento</strong>
                   <p>
-                    Informe onde a equipe deve executar o serviço. Se o cliente
-                    já tiver endereço cadastrado, ele pode ser preenchido
+                    Informe onde a equipe deve executar o serviço. Se o cliente já
+                    tiver endereço cadastrado, ele pode ser preenchido
                     automaticamente.
                   </p>
                 </div>
@@ -460,11 +559,11 @@ export default function OSForm() {
                   <span>Endereço</span>
                   <input
                     className="form-control"
-                    type="text"
                     name="address"
-                    value={formData.address}
                     onChange={handleChange}
                     placeholder="Rua, número, bairro, cidade"
+                    type="text"
+                    value={formData.address}
                   />
                 </label>
               </div>
@@ -478,15 +577,13 @@ export default function OSForm() {
                 <div>
                   <strong>Anexos</strong>
                   <p>
-                    O campo de anexos pode ser conectado em seguida, mas a aba
-                    já está preparada para receber esse fluxo.
+                    O campo de anexos pode ser conectado em seguida, mas a aba já
+                    está preparada para receber esse fluxo.
                   </p>
                 </div>
               </div>
             </div>
           ) : null}
-
-          {submitError ? <div className="os-form-error">{submitError}</div> : null}
 
           <div className="os-actions">
             <button
@@ -499,9 +596,10 @@ export default function OSForm() {
 
             <button
               className="btn btn-primary"
+              disabled={isSubmitting}
               type="submit"
-              disabled={!canSubmit || isSubmitting}
             >
+              {isSubmitting ? <ButtonSpinner /> : null}
               {isSubmitting ? 'Criando...' : 'Criar OS'}
             </button>
           </div>

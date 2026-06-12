@@ -1,27 +1,27 @@
 import { SignIn, useClerk } from '@clerk/clerk-react';
+import { ShieldCheck } from 'lucide-react';
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { ShieldCheck } from 'lucide-react';
 import { useAppAuth } from '../auth/useAppAuth';
+import BrandLoader from '../components/BrandLoader';
 
 export default function Login() {
   const { signOut } = useClerk();
-  const { appUser, clerkUser, error, isLoaded, isSignedIn, refreshCurrentUser, status } =
+  const { appUser, clerkUser, isLoaded, isSignedIn, refreshCurrentUser, status } =
     useAppAuth();
 
   if (!isLoaded || status === 'loading') {
     return (
       <div className="page-state">
-        <div className="page-state-card page-state-card-compact">
-          <div className="session-spinner" aria-hidden />
-          <h1>Fulltech Control</h1>
+        <div className="page-state-card">
+          <BrandLoader />
         </div>
       </div>
     );
   }
 
   if (isSignedIn && status === 'ready' && appUser) {
-    return <Navigate to={appUser.role === 'ADMIN' ? '/admin' : '/tech'} replace />;
+    return <Navigate replace to={appUser.role === 'ADMIN' ? '/admin' : '/tech'} />;
   }
 
   if (isSignedIn && status === 'pending') {
@@ -31,13 +31,13 @@ export default function Login() {
           <div className="access-icon">
             <ShieldCheck size={28} />
           </div>
-          <h1>Acesso nao autorizado</h1>
+          <h1>Acesso não autorizado</h1>
           <p>
-            O login foi concluido, mas esse e-mail ainda nao foi liberado por um
-            administrador para entrar na aplicacao.
+            O login foi concluído, mas esse e-mail ainda não foi liberado por um
+            administrador para entrar na aplicação.
           </p>
           <p className="access-email">
-            {clerkUser?.primaryEmailAddress?.emailAddress || 'E-mail indisponivel'}
+            {clerkUser?.primaryEmailAddress?.emailAddress || 'E-mail indisponível'}
           </p>
           <div className="access-actions">
             <button className="btn btn-primary" onClick={() => void refreshCurrentUser()}>
@@ -57,7 +57,10 @@ export default function Login() {
       <div className="page-state">
         <div className="page-state-card access-card">
           <h1>Falha ao carregar o acesso</h1>
-          <p>{error || 'Nao foi possivel validar o perfil da aplicacao.'}</p>
+          <p>
+            Não foi possível validar sua liberação agora. Tente novamente em
+            instantes ou saia e entre de novo.
+          </p>
           <div className="access-actions">
             <button className="btn btn-primary" onClick={() => void refreshCurrentUser()}>
               Tentar novamente
@@ -77,9 +80,9 @@ export default function Login() {
         <img
           alt="Fulltech Elevadores"
           className="auth-brand-logo"
-          src="/brand/fulltech-logo.png"
+          src="/brand/fulltech-wordmark.png"
         />
-        <span className="auth-badge">Operacao conectada</span>
+        <span className="auth-badge">Operação conectada</span>
         <h1>Fulltech Control</h1>
 
         <div className="auth-highlights">
@@ -101,6 +104,7 @@ export default function Login() {
           }}
           fallbackRedirectUrl="/"
           signUpFallbackRedirectUrl="/"
+          signUpUrl="/sign-up"
         />
       </div>
     </div>

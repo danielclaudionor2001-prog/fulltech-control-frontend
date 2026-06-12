@@ -7,29 +7,29 @@ export const SERVICE_ORDER_STATUS_LABELS = {
 
 export const SERVICE_ORDER_STATUS_STEPS = [
   {
-    description: 'OS criada e aguardando inicio do atendimento.',
+    description: 'OS criada e aguardando início do atendimento.',
     label: SERVICE_ORDER_STATUS_LABELS.OPEN,
     status: 'OPEN',
   },
   {
-    description: 'Atendimento assumido e em execucao.',
+    description: 'Atendimento assumido e em execução.',
     label: SERVICE_ORDER_STATUS_LABELS.IN_PROGRESS,
     status: 'IN_PROGRESS',
   },
   {
-    description: 'Servico concluido e OS encerrada.',
+    description: 'Serviço concluído e OS encerrada.',
     label: SERVICE_ORDER_STATUS_LABELS.DONE,
     status: 'DONE',
   },
   {
-    description: 'OS encerrada sem execucao.',
+    description: 'OS encerrada sem execução.',
     label: SERVICE_ORDER_STATUS_LABELS.CANCELED,
     status: 'CANCELED',
   },
 ];
 
 export const getServiceOrderStatusLabel = (status) =>
-  SERVICE_ORDER_STATUS_LABELS[status] || status || 'Nao informado';
+  SERVICE_ORDER_STATUS_LABELS[status] || status || 'Não informado';
 
 export const formatServiceOrderDateTime = (dateLike) => {
   if (!dateLike) {
@@ -38,7 +38,7 @@ export const formatServiceOrderDateTime = (dateLike) => {
 
   const parsedDate = new Date(dateLike);
   if (Number.isNaN(parsedDate.getTime())) {
-    return 'Data invalida';
+    return 'Data inválida';
   }
 
   return parsedDate.toLocaleString('pt-BR', {

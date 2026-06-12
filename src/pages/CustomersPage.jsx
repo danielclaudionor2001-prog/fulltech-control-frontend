@@ -1,8 +1,10 @@
 import { useAuth } from '@clerk/clerk-react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Building2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import ButtonSpinner from '../components/ButtonSpinner';
 import ModalShell from '../components/ModalShell';
 import SkeletonBlock from '../components/SkeletonBlock';
+import { useToast } from '../components/ToastProvider';
 import { createCustomer, deleteCustomer, getCustomers } from '../services/api';
 
 const initialFormState = {
@@ -20,14 +22,15 @@ const formatDateTime = (dateLike) => {
 
 export default function CustomersPage() {
   const { getToken } = useAuth();
+  const { showError, showSuccess, showWarning } = useToast();
   const [customers, setCustomers] = useState([]);
   const [formData, setFormData] = useState(initialFormState);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [busyCustomerId, setBusyCustomerId] = useState('');
   const [pageError, setPageError] = useState('');
-  const [formError, setFormError] = useState('');
 
   const isInitialLoading = loading && customers.length === 0;
 
@@ -46,19 +49,32 @@ export default function CustomersPage() {
     } catch (fetchError) {
       console.error('Failed to fetch customers', fetchError);
       setPageError('Não foi possível carregar os clientes.');
+      throw fetchError;
     } finally {
       setLoading(false);
     }
   }, [getToken]);
 
   useEffect(() => {
-    void fetchCustomers();
+    void fetchCustomers().catch(() => {});
   }, [fetchCustomers]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+
+    try {
+      await fetchCustomers();
+      showSuccess('Lista de clientes atualizada.');
+    } catch {
+      showError('Não foi possível atualizar os clientes agora.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setFormData(initialFormState);
-    setFormError('');
   };
 
   const handleChange = (event) => {
@@ -71,23 +87,29 @@ export default function CustomersPage() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!formData.name.trim() || !formData.address.trim() || isSubmitting) {
+
+    if (!formData.name.trim() || !formData.address.trim()) {
+      showWarning('Preencha os campos obrigatórios de cliente.');
       return;
     }
 
-    setFormError('');
+    if (isSubmitting) {
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       await createCustomer(formData, getToken);
       await fetchCustomers();
+      showSuccess('Cliente cadastrado com sucesso.');
       closeModal();
     } catch (submitError) {
       const message =
         submitError instanceof Error
           ? submitError.message
           : 'Falha ao cadastrar cliente.';
-      setFormError(message);
+      showError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -100,12 +122,14 @@ export default function CustomersPage() {
     try {
       await deleteCustomer(id, getToken);
       await fetchCustomers();
+      showSuccess('Cliente removido com sucesso.');
     } catch (deleteError) {
       const message =
         deleteError instanceof Error
           ? deleteError.message
           : 'Falha ao remover o cliente.';
       setPageError(message);
+      showError(message);
     } finally {
       setBusyCustomerId('');
     }
@@ -126,12 +150,13 @@ export default function CustomersPage() {
         <div className="dashboard-actions">
           <button
             className="btn btn-secondary"
-            onClick={() => void fetchCustomers()}
+            disabled={refreshing}
+            onClick={() => void handleRefresh()}
             title="Atualizar"
             type="button"
           >
-            <RefreshCw size={20} />
-            Atualizar
+            {refreshing ? <ButtonSpinner /> : <RefreshCw size={20} />}
+            {refreshing ? 'Atualizando...' : 'Atualizar'}
           </button>
 
           <button
@@ -240,7 +265,7 @@ export default function CustomersPage() {
                               onClick={() => void handleDelete(customer.id)}
                               type="button"
                             >
-                              <Trash2 size={16} />
+                              {isBusy ? <ButtonSpinner /> : <Trash2 size={16} />}
                               {isBusy ? 'Removendo...' : 'Remover'}
                             </button>
                           </div>
@@ -264,7 +289,7 @@ export default function CustomersPage() {
       >
         <form className="simple-form" onSubmit={handleSubmit}>
           <label className="simple-form-field">
-            <span>Nome do cliente</span>
+            <span>Nome do cliente *</span>
             <input
               name="name"
               onChange={handleChange}
@@ -274,7 +299,7 @@ export default function CustomersPage() {
           </label>
 
           <label className="simple-form-field">
-            <span>Endereço</span>
+            <span>Endereço *</span>
             <input
               name="address"
               onChange={handleChange}
@@ -283,9 +308,8 @@ export default function CustomersPage() {
             />
           </label>
 
-          {formError ? <div className="inline-error">{formError}</div> : null}
-
           <button className="btn btn-primary" disabled={isSubmitting} type="submit">
+            {isSubmitting ? <ButtonSpinner /> : null}
             {isSubmitting ? 'Salvando...' : 'Cadastrar cliente'}
           </button>
         </form>

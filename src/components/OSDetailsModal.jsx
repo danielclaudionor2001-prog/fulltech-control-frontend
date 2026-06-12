@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Download, X } from 'lucide-react';
+import ButtonSpinner from './ButtonSpinner';
+import { useToast } from './ToastProvider';
 import {
   formatServiceOrderDateTime,
   getServiceOrderStatusLabel,
@@ -7,8 +9,8 @@ import {
 import { downloadServiceOrderPdf } from '../utils/serviceOrderPdf';
 
 const SERVICE_TYPE_LABELS = {
-  instalacao: 'Instalacao',
-  manutencao: 'Manutencao',
+  instalacao: 'Instalação',
+  manutencao: 'Manutenção',
   suporte: 'Suporte',
   vistoria: 'Vistoria',
 };
@@ -24,12 +26,12 @@ const DEADLINE_LABELS = {
 
 const formatDateTime = (dateLike) => {
   if (!dateLike) {
-    return 'Nao informado';
+    return 'Não informado';
   }
 
   const parsedDate = new Date(dateLike);
   if (Number.isNaN(parsedDate.getTime())) {
-    return 'Nao informado';
+    return 'Não informado';
   }
 
   return parsedDate.toLocaleString('pt-BR', {
@@ -43,28 +45,31 @@ const formatDateTime = (dateLike) => {
 
 const normalizeValue = (value) => {
   if (value === null || value === undefined || value === '') {
-    return 'Nao informado';
+    return 'Não informado';
   }
 
   return String(value);
 };
 
 const getPersonLabel = (person) =>
-  person?.name || person?.email || person?.clerkUserId || 'Nao informado';
+  person?.name || person?.email || person?.clerkUserId || 'Não informado';
 
 const buildDetails = (os) => [
   ['Identificador', os.identifier ? `#${os.identifier}` : `#${os.id?.slice(0, 8)}`],
   ['ID interno', normalizeValue(os.id)],
   ['Status', getServiceOrderStatusLabel(os.status)],
   ['Cliente', normalizeValue(os.customer)],
-  ['Endereco', normalizeValue(os.address)],
-  ['Descricao', normalizeValue(os.description)],
+  ['Endereço', normalizeValue(os.address)],
+  ['Descrição', normalizeValue(os.description)],
   ['Tipo de OS', SERVICE_TYPE_LABELS[os.osType] || normalizeValue(os.osType)],
   ['Prazo', DEADLINE_LABELS[os.deadline] || normalizeValue(os.deadline)],
-  ['Duracao prevista', os.durationMinutes ? `${os.durationMinutes} minutos` : 'Nao informado'],
+  [
+    'Duração prevista',
+    os.durationMinutes ? `${os.durationMinutes} minutos` : 'Não informado',
+  ],
   ['Agendamento', formatServiceOrderDateTime(os.scheduleAt)],
-  ['Horario informado', normalizeValue(os.scheduleTimeText)],
-  ['Responsavel', getPersonLabel(os.assignedTo)],
+  ['Horário informado', normalizeValue(os.scheduleTimeText)],
+  ['Responsável', getPersonLabel(os.assignedTo)],
   ['Criada por', getPersonLabel(os.createdBy)],
   ['Colaborador legado', normalizeValue(os.collaborator)],
   ['Criada em', formatDateTime(os.createdAt)],
@@ -72,33 +77,39 @@ const buildDetails = (os) => [
 ];
 
 export default function OSDetailsModal({ onClose, os }) {
+  const { showError } = useToast();
+  const [isDownloading, setIsDownloading] = useState(false);
   const canDownloadPdf = os.status === 'DONE';
 
   const handleDownload = async () => {
+    setIsDownloading(true);
+
     try {
       await downloadServiceOrderPdf(os);
     } catch (error) {
       console.error('Failed to generate service order PDF', error);
-      window.alert('Nao foi possivel gerar o PDF da OS agora.');
+      showError('Não foi possível gerar o PDF da OS agora.');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
   return (
     <div className="modal-backdrop" role="presentation">
       <article
-        aria-label="Detalhes da ordem de servico"
+        aria-label="Detalhes da ordem de serviço"
         aria-modal="true"
         className="modal-card os-details-modal"
         role="dialog"
       >
         <div className="modal-header">
           <div className="modal-copy">
-            <span className="page-eyebrow">Ordem de servico</span>
+            <span className="page-eyebrow">Ordem de serviço</span>
             <h2 className="modal-title">
               {os.identifier ? `#${os.identifier}` : `#${os.id?.slice(0, 8)}`}
             </h2>
             <p className="modal-subtitle">
-              Dados completos da OS e exportacao em PDF quando finalizada.
+              Dados completos da OS e exportação em PDF quando finalizada.
             </p>
           </div>
 
@@ -124,9 +135,14 @@ export default function OSDetailsModal({ onClose, os }) {
 
           {canDownloadPdf ? (
             <div className="modal-actions">
-              <button className="btn btn-primary" onClick={handleDownload} type="button">
-                <Download size={18} />
-                Baixar PDF
+              <button
+                className="btn btn-primary"
+                disabled={isDownloading}
+                onClick={() => void handleDownload()}
+                type="button"
+              >
+                {isDownloading ? <ButtonSpinner /> : <Download size={18} />}
+                {isDownloading ? 'Gerando PDF...' : 'Baixar PDF'}
               </button>
             </div>
           ) : null}

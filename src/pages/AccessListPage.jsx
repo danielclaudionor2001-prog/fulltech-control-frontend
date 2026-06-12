@@ -1,10 +1,12 @@
 import { useAuth } from '@clerk/clerk-react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { MailPlus, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useAppAuth } from '../auth/useAppAuth';
+import ButtonSpinner from '../components/ButtonSpinner';
 import ModalShell from '../components/ModalShell';
 import SelectField from '../components/SelectField';
 import SkeletonBlock from '../components/SkeletonBlock';
-import { useAppAuth } from '../auth/useAppAuth';
+import { useToast } from '../components/ToastProvider';
 import {
   createAllowedEmail,
   getAccessList,
@@ -33,21 +35,31 @@ const formatDateTime = (dateLike) => {
 export default function AccessListPage() {
   const { getToken } = useAuth();
   const { appUser } = useAppAuth();
+  const { showError, showSuccess, showWarning } = useToast();
   const [allowedEmails, setAllowedEmails] = useState([]);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('TECH');
   const [roleDrafts, setRoleDrafts] = useState({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [busyAllowedEmailId, setBusyAllowedEmailId] = useState('');
+  const [busyAction, setBusyAction] = useState('');
+  const [pendingDeleteAllowedEmail, setPendingDeleteAllowedEmail] = useState(null);
   const [pageError, setPageError] = useState('');
-  const [formError, setFormError] = useState('');
 
   const isInitialLoading = loading && allowedEmails.length === 0;
 
   const sortedAllowedEmails = useMemo(
-    () => [...allowedEmails].sort((left, right) => left.email.localeCompare(right.email)),
+    () =>
+      [...allowedEmails].sort((left, right) => {
+        if (left.role !== right.role) {
+          return left.role.localeCompare(right.role);
+        }
+
+        return left.email.localeCompare(right.email);
+      }),
     [allowedEmails],
   );
 
@@ -91,41 +103,68 @@ export default function AccessListPage() {
     } catch (fetchError) {
       console.error('Failed to fetch access list', fetchError);
       setPageError('Não foi possível carregar os e-mails autorizados.');
+      throw fetchError;
     } finally {
       setLoading(false);
     }
   }, [getToken]);
 
   useEffect(() => {
-    void fetchAllowedEmails();
+    void fetchAllowedEmails().catch(() => {});
   }, [fetchAllowedEmails]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+
+    try {
+      await fetchAllowedEmails();
+      showSuccess('Lista de acessos atualizada.');
+    } catch {
+      showError('Não foi possível atualizar os acessos agora.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setEmail('');
     setRole('TECH');
-    setFormError('');
+  };
+
+  const closeDeleteModal = () => {
+    if (busyAllowedEmailId) {
+      return;
+    }
+
+    setPendingDeleteAllowedEmail(null);
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!email.trim() || isSubmitting) {
+
+    if (!email.trim()) {
+      showWarning('Informe o e-mail que será autorizado.');
       return;
     }
 
-    setFormError('');
+    if (isSubmitting) {
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       await createAllowedEmail(email, role, getToken);
       await fetchAllowedEmails();
+      showSuccess('Acesso salvo com sucesso.');
       closeModal();
     } catch (submitError) {
       const message =
         submitError instanceof Error
           ? submitError.message
-          : 'Falha ao autorizar e-mail.';
-      setFormError(message);
+          : 'Falha ao autorizar o e-mail.';
+      showError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -138,37 +177,50 @@ export default function AccessListPage() {
     }
 
     setBusyAllowedEmailId(allowedEmail.id);
+    setBusyAction('save');
     setPageError('');
 
     try {
       await createAllowedEmail(allowedEmail.email, nextRole, getToken);
       await fetchAllowedEmails();
+      showSuccess('Perfil atualizado com sucesso.');
     } catch (saveError) {
       const message =
         saveError instanceof Error
           ? saveError.message
           : 'Falha ao atualizar o perfil.';
       setPageError(message);
+      showError(message);
     } finally {
       setBusyAllowedEmailId('');
+      setBusyAction('');
     }
   };
 
-  const handleDelete = async (id) => {
-    setBusyAllowedEmailId(id);
+  const handleDelete = async () => {
+    if (!pendingDeleteAllowedEmail) {
+      return;
+    }
+
+    setBusyAllowedEmailId(pendingDeleteAllowedEmail.id);
+    setBusyAction('delete');
     setPageError('');
 
     try {
-      await removeAllowedEmail(id, getToken);
+      await removeAllowedEmail(pendingDeleteAllowedEmail.id, getToken);
       await fetchAllowedEmails();
+      setPendingDeleteAllowedEmail(null);
+      showSuccess('Usuário removido do banco e do Clerk.');
     } catch (deleteError) {
       const message =
         deleteError instanceof Error
           ? deleteError.message
           : 'Falha ao remover o acesso.';
       setPageError(message);
+      showError(message);
     } finally {
       setBusyAllowedEmailId('');
+      setBusyAction('');
     }
   };
 
@@ -187,12 +239,13 @@ export default function AccessListPage() {
         <div className="dashboard-actions">
           <button
             className="btn btn-secondary"
-            onClick={() => void fetchAllowedEmails()}
+            disabled={refreshing}
+            onClick={() => void handleRefresh()}
             title="Atualizar"
             type="button"
           >
-            <RefreshCw size={20} />
-            Atualizar
+            {refreshing ? <ButtonSpinner /> : <RefreshCw size={20} />}
+            {refreshing ? 'Atualizando...' : 'Atualizar'}
           </button>
 
           <button
@@ -286,6 +339,8 @@ export default function AccessListPage() {
                       roleDrafts[allowedEmail.id] || allowedEmail.role;
                     const isBusy = busyAllowedEmailId === allowedEmail.id;
                     const isCurrentUser = Boolean(allowedEmail.isCurrentUser);
+                    const isProtected = Boolean(allowedEmail.isProtected);
+                    const disableRowActions = isBusy || isCurrentUser || isProtected;
 
                     return (
                       <tr key={allowedEmail.id}>
@@ -293,9 +348,11 @@ export default function AccessListPage() {
                           <div className="table-primary-cell">
                             <strong>{allowedEmail.email}</strong>
                             <small>
-                              {isCurrentUser
-                                ? 'Seu usuário atual'
-                                : `ID: ${allowedEmail.id.slice(0, 8)}`}
+                              {isProtected
+                                ? 'Administrador principal do ambiente'
+                                : isCurrentUser
+                                  ? 'Seu usuário atual'
+                                  : `ID: ${allowedEmail.id.slice(0, 8)}`}
                             </small>
                           </div>
                         </td>
@@ -303,7 +360,7 @@ export default function AccessListPage() {
                           <SelectField
                             buttonClassName="table-select-trigger"
                             className="table-select"
-                            disabled={isBusy || isCurrentUser}
+                            disabled={disableRowActions}
                             onChange={(nextRole) =>
                               setRoleDrafts((previous) => ({
                                 ...previous,
@@ -323,18 +380,22 @@ export default function AccessListPage() {
                               disabled={
                                 isBusy ||
                                 isCurrentUser ||
+                                isProtected ||
                                 currentDraftRole === allowedEmail.role
                               }
                               onClick={() => void handleSaveRole(allowedEmail)}
                               type="button"
                             >
-                              {isBusy ? 'Salvando...' : 'Salvar'}
+                              {isBusy && busyAction === 'save' ? <ButtonSpinner /> : null}
+                              {isBusy && busyAction === 'save'
+                                ? 'Salvando...'
+                                : 'Salvar'}
                             </button>
 
                             <button
                               className="btn btn-outline btn-compact"
-                              disabled={isBusy || isCurrentUser}
-                              onClick={() => void handleDelete(allowedEmail.id)}
+                              disabled={disableRowActions}
+                              onClick={() => setPendingDeleteAllowedEmail(allowedEmail)}
                               type="button"
                             >
                               <Trash2 size={16} />
@@ -361,7 +422,7 @@ export default function AccessListPage() {
       >
         <form className="simple-form" onSubmit={handleSubmit}>
           <label className="simple-form-field">
-            <span>E-mail permitido</span>
+            <span>E-mail permitido *</span>
             <input
               onChange={(event) => setEmail(event.target.value)}
               placeholder="tecnico@empresa.com"
@@ -371,20 +432,55 @@ export default function AccessListPage() {
           </label>
 
           <label className="simple-form-field">
-            <span>Perfil de acesso</span>
-            <SelectField
-              options={ROLE_OPTIONS}
-              onChange={setRole}
-              value={role}
-            />
+            <span>Perfil de acesso *</span>
+            <SelectField onChange={setRole} options={ROLE_OPTIONS} value={role} />
           </label>
 
-          {formError ? <div className="inline-error">{formError}</div> : null}
-
           <button className="btn btn-primary" disabled={isSubmitting} type="submit">
+            {isSubmitting ? <ButtonSpinner /> : null}
             {isSubmitting ? 'Salvando...' : 'Salvar acesso'}
           </button>
         </form>
+      </ModalShell>
+
+      <ModalShell
+        description="Essa ação remove o acesso da aplicação e apaga o cadastro no Clerk, mas as ordens de serviço continuarão no sistema."
+        icon={Trash2}
+        onClose={closeDeleteModal}
+        open={Boolean(pendingDeleteAllowedEmail)}
+        title="Excluir usuário"
+      >
+        <div className="simple-form">
+          <div className="inline-error">
+            <strong>{pendingDeleteAllowedEmail?.email}</strong>
+            <br />
+            Ao confirmar, o acesso será removido do banco e do Clerk. As OS já
+            registradas serão mantidas. Essa ação não pode ser desfeita.
+          </div>
+
+          <div className="modal-actions">
+            <button
+              className="btn btn-secondary"
+              disabled={Boolean(busyAllowedEmailId)}
+              onClick={closeDeleteModal}
+              type="button"
+            >
+              Cancelar
+            </button>
+
+            <button
+              className="btn btn-outline"
+              disabled={Boolean(busyAllowedEmailId)}
+              onClick={() => void handleDelete()}
+              type="button"
+            >
+              {busyAllowedEmailId && busyAction === 'delete' ? <ButtonSpinner /> : null}
+              {busyAllowedEmailId && busyAction === 'delete'
+                ? 'Excluindo...'
+                : 'Excluir usuário'}
+            </button>
+          </div>
+        </div>
       </ModalShell>
     </div>
   );

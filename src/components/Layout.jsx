@@ -43,15 +43,16 @@ export default function Layout() {
   return (
     <div className="layout">
       <header className="topbar">
-        <Link to={isAdmin ? '/admin' : '/tech'} className="brand">
+        <Link
+          to={isAdmin ? '/admin' : '/tech'}
+          className="brand"
+          aria-label="Fulltech Elevadores"
+        >
           <img
-            alt=""
-            aria-hidden="true"
-            className="brand-symbol"
-            src="/brand/fulltech-symbol.png"
+            alt="Fulltech Elevadores"
+            className="brand-logo"
+            src="/brand/fulltech-wordmark.png"
           />
-          <span className="brand-kicker">Operacao</span>
-          <strong className="brand-title">Fulltech Control</strong>
         </Link>
 
         <div className="topbar-side">
@@ -59,7 +60,7 @@ export default function Layout() {
             <div className="nav-user-copy">
               <span className="nav-user-name">{displayName}</span>
               <span className="nav-user-role">
-                {isAdmin ? 'Administrador' : 'Tecnico'}
+                {isAdmin ? 'Administrador' : 'Técnico'}
               </span>
             </div>
             <UserButton afterSignOutUrl="/" />

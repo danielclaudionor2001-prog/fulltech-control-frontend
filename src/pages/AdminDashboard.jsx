@@ -1,4 +1,3 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import {
   CheckCircle2,
@@ -7,11 +6,13 @@ import {
   RefreshCw,
   Users,
 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import ButtonSpinner from '../components/ButtonSpinner';
 import OSCard from '../components/OSCard';
-import OSLifecycleLegend from '../components/OSLifecycleLegend';
 import SelectField from '../components/SelectField';
 import SkeletonBlock from '../components/SkeletonBlock';
+import { useToast } from '../components/ToastProvider';
 import {
   getServiceOrders,
   getUsers,
@@ -32,16 +33,22 @@ const ROLE_OPTIONS = [
 
 export default function AdminDashboard() {
   const { getToken } = useAuth();
+  const { showError, showSuccess } = useToast();
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
   const [roleDrafts, setRoleDrafts] = useState({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [busyUserId, setBusyUserId] = useState('');
+  const [busyOrderId, setBusyOrderId] = useState('');
+  const [busyOrderAction, setBusyOrderAction] = useState('');
+  const [pageError, setPageError] = useState('');
 
   const isInitialLoading = loading && orders.length === 0 && users.length === 0;
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
+    setPageError('');
 
     try {
       const [ordersData, usersData] = await Promise.all([
@@ -56,14 +63,29 @@ export default function AdminDashboard() {
       );
     } catch (error) {
       console.error('Failed to load admin dashboard', error);
+      setPageError('Não foi possível carregar o painel administrativo.');
+      throw error;
     } finally {
       setLoading(false);
     }
   }, [getToken]);
 
   useEffect(() => {
-    void fetchDashboard();
+    void fetchDashboard().catch(() => {});
   }, [fetchDashboard]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+
+    try {
+      await fetchDashboard();
+      showSuccess('Painel atualizado com sucesso.');
+    } catch {
+      showError('Não foi possível atualizar o painel agora.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const techUsers = useMemo(
     () => users.filter((user) => user.role === 'TECH'),
@@ -101,14 +123,30 @@ export default function AdminDashboard() {
     try {
       await updateUserRole(id, role, getToken);
       await fetchDashboard();
+      showSuccess('Perfil atualizado com sucesso.');
+    } catch (error) {
+      console.error('Failed to update user role', error);
+      showError('Não foi possível atualizar o perfil agora.');
     } finally {
       setBusyUserId('');
     }
   };
 
   const handleStatusUpdate = async (id, status) => {
-    await updateServiceOrder(id, { status }, getToken);
-    await fetchDashboard();
+    setBusyOrderId(id);
+    setBusyOrderAction(status === 'DONE' ? 'done' : 'progress');
+
+    try {
+      await updateServiceOrder(id, { status }, getToken);
+      await fetchDashboard();
+      showSuccess('Ordem de serviço atualizada.');
+    } catch (error) {
+      console.error('Failed to update service order', error);
+      showError('Não foi possível atualizar a OS agora.');
+    } finally {
+      setBusyOrderId('');
+      setBusyOrderAction('');
+    }
   };
 
   return (
@@ -119,19 +157,20 @@ export default function AdminDashboard() {
             <span className="page-eyebrow">Operação</span>
             <h1 className="page-title">Painel administrativo</h1>
             <p className="page-subtitle">
-              Acompanhe o dia, distribua a operação e mantenha acessos,
-              clientes e ordens sob controle em uma única visão.
+              Acompanhe o dia, distribua a operação e mantenha acessos, clientes e
+              ordens sob controle em uma única visão.
             </p>
           </div>
 
           <button
             className="btn btn-secondary"
-            onClick={() => void fetchDashboard()}
+            disabled={refreshing}
+            onClick={() => void handleRefresh()}
             title="Atualizar"
             type="button"
           >
-            <RefreshCw size={20} />
-            Atualizar
+            {refreshing ? <ButtonSpinner /> : <RefreshCw size={20} />}
+            {refreshing ? 'Atualizando...' : 'Atualizar'}
           </button>
         </div>
 
@@ -175,6 +214,8 @@ export default function AdminDashboard() {
         </div>
       </section>
 
+      {pageError ? <div className="inline-error">{pageError}</div> : null}
+
       <div className="content-grid content-grid-dashboard">
         <section className="section-card">
           <div className="section-title">
@@ -214,7 +255,7 @@ export default function AdminDashboard() {
               ) : (
                 <strong>{doneOrders.length}</strong>
               )}
-              <small>Ordens ja finalizadas</small>
+              <small>Ordens já finalizadas</small>
             </div>
             <div className="mini-stat-card mini-stat-card-alert">
               <span>Canceladas</span>
@@ -231,8 +272,7 @@ export default function AdminDashboard() {
             <Link className="action-link-card" to="/admin/access">
               <strong>Autorizar e-mails</strong>
               <span>
-                Defina quem pode entrar na aplicação como técnico ou
-                administrador.
+                Defina quem pode entrar na aplicação como técnico ou administrador.
               </span>
             </Link>
 
@@ -336,6 +376,7 @@ export default function AdminDashboard() {
                       onClick={() => void handleUpdateRole(user.id)}
                       type="button"
                     >
+                      {busyUserId === user.id ? <ButtonSpinner /> : null}
                       {busyUserId === user.id ? 'Salvando...' : 'Salvar perfil'}
                     </button>
                   </div>
@@ -356,8 +397,6 @@ export default function AdminDashboard() {
             </p>
           </div>
         </div>
-
-        <OSLifecycleLegend />
 
         {isInitialLoading ? (
           <div className="grid">
@@ -383,6 +422,7 @@ export default function AdminDashboard() {
           <div className="grid">
             {orders.map((os) => (
               <OSCard
+                busyAction={busyOrderId === os.id ? busyOrderAction : ''}
                 key={os.id}
                 isTechnician={false}
                 onStatusUpdate={handleStatusUpdate}

@@ -7,6 +7,7 @@ import AccessListPage from './pages/AccessListPage';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import CustomersPage from './pages/CustomersPage';
+import SignUpPage from './pages/SignUpPage';
 import TechnicianDashboard from './pages/TechnicianDashboard';
 import OSForm from './pages/OSForm';
 import MapPage from './pages/MapPage';
@@ -15,6 +16,7 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<Login />} />
+      <Route path="/sign-up/*" element={<SignUpPage />} />
       <Route element={<RequireRole><Layout /></RequireRole>}>
         <Route
           path="/admin"

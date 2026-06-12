@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { AppAuthProvider } from './auth/AppAuthProvider';
+import { ToastProvider } from './components/ToastProvider';
 import './index.css';
 
 const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -15,19 +16,36 @@ if (!clerkPublishableKey) {
 
 const clerkLocalization = {
   ...ptBR,
+  dividerText: 'ou',
+  formButtonPrimary: 'Continuar',
+  formFieldLabel__emailAddress: 'E-mail',
+  formFieldLabel__password: 'Senha',
+  formFieldInputPlaceholder__emailAddress: 'Digite seu e-mail',
+  formFieldInputPlaceholder__password: 'Digite sua senha',
+  formFieldInputPlaceholder__signUpPassword: 'Crie uma senha',
+  signIn: {
+    ...ptBR.signIn,
+    start: {
+      ...ptBR.signIn?.start,
+      actionLink: 'Cadastre-se',
+      actionText: 'Ainda não possui uma conta?',
+      subtitle: 'Entre para continuar no Fulltech Control',
+      title: 'Entrar',
+    },
+  },
   signUp: {
     ...ptBR.signUp,
     continue: {
       ...ptBR.signUp?.continue,
       actionLink: 'Entrar',
-      actionText: 'Ja possui uma conta?',
+      actionText: 'Já possui uma conta?',
       subtitle: 'para continuar no Fulltech Control',
       title: 'Preencha os campos ausentes',
     },
     start: {
       ...ptBR.signUp?.start,
       actionLink: 'Entrar',
-      actionText: 'Ja possui uma conta?',
+      actionText: 'Já possui uma conta?',
       subtitle: 'para continuar no Fulltech Control',
       subtitleCombined: 'para continuar no Fulltech Control',
       title: 'Criar sua conta',
@@ -39,15 +57,21 @@ const clerkLocalization = {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ClerkProvider
-      publishableKey={clerkPublishableKey}
       afterSignOutUrl="/"
       localization={clerkLocalization}
+      publishableKey={clerkPublishableKey}
+      signInFallbackRedirectUrl="/"
+      signInUrl="/"
+      signUpFallbackRedirectUrl="/"
+      signUpUrl="/sign-up"
     >
       <BrowserRouter>
-        <AppAuthProvider>
-          <App />
-        </AppAuthProvider>
+        <ToastProvider>
+          <AppAuthProvider>
+            <App />
+          </AppAuthProvider>
+        </ToastProvider>
       </BrowserRouter>
     </ClerkProvider>
   </StrictMode>,
-)
+);

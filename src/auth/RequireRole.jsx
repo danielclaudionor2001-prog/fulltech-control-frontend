@@ -1,5 +1,6 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import BrandLoader from '../components/BrandLoader';
 import { useAppAuth } from './useAppAuth';
 
 function FullPageState({ children }) {
@@ -17,23 +18,22 @@ export default function RequireRole({ allowedRoles, children }) {
   if (!isLoaded || status === 'loading') {
     return (
       <FullPageState>
-        <div className="session-spinner" aria-hidden />
-        <h2>Carregando acesso...</h2>
+        <BrandLoader label="Carregando acesso..." />
       </FullPageState>
     );
   }
 
   if (!isSignedIn) {
-    return <Navigate to="/" replace state={{ from: location.pathname }} />;
+    return <Navigate replace state={{ from: location.pathname }} to="/" />;
   }
 
   if (status !== 'ready' || !appUser) {
-    return <Navigate to="/" replace />;
+    return <Navigate replace to="/" />;
   }
 
   if (allowedRoles && !allowedRoles.includes(appUser.role)) {
     const fallbackPath = appUser.role === 'ADMIN' ? '/admin' : '/tech';
-    return <Navigate to={fallbackPath} replace />;
+    return <Navigate replace to={fallbackPath} />;
   }
 
   return children ?? <Outlet />;

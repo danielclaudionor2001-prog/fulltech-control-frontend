@@ -16,8 +16,8 @@ const COLORS = {
 };
 
 const SERVICE_TYPE_LABELS = {
-  instalacao: 'Instalacao',
-  manutencao: 'Manutencao',
+  instalacao: 'Instalação',
+  manutencao: 'Manutenção',
   suporte: 'Suporte',
   vistoria: 'Vistoria',
 };
@@ -33,23 +33,23 @@ const DEADLINE_LABELS = {
 
 const normalizeValue = (value) => {
   if (value === null || value === undefined || value === '') {
-    return 'Nao informado';
+    return 'Não informado';
   }
 
   return String(value);
 };
 
 const getPersonLabel = (person) =>
-  person?.name || person?.email || person?.clerkUserId || 'Nao informado';
+  person?.name || person?.email || person?.clerkUserId || 'Não informado';
 
 const formatDateTime = (dateLike) => {
   if (!dateLike) {
-    return 'Nao informado';
+    return 'Não informado';
   }
 
   const parsedDate = new Date(dateLike);
   if (Number.isNaN(parsedDate.getTime())) {
-    return 'Nao informado';
+    return 'Não informado';
   }
 
   return parsedDate.toLocaleString('pt-BR', {
@@ -63,12 +63,12 @@ const formatDateTime = (dateLike) => {
 
 const formatDate = (dateLike) => {
   if (!dateLike) {
-    return 'Nao informado';
+    return 'Não informado';
   }
 
   const parsedDate = new Date(dateLike);
   if (Number.isNaN(parsedDate.getTime())) {
-    return 'Nao informado';
+    return 'Não informado';
   }
 
   return parsedDate.toLocaleDateString('pt-BR');
@@ -81,7 +81,7 @@ const formatTime = (dateLike, fallback) => {
 
   const parsedDate = new Date(dateLike);
   if (Number.isNaN(parsedDate.getTime())) {
-    return 'Nao informado';
+    return 'Não informado';
   }
 
   return parsedDate.toLocaleTimeString('pt-BR', {
@@ -102,7 +102,7 @@ const loadImageDataUrl = async (path) => {
   const response = await fetch(path);
 
   if (!response.ok) {
-    throw new Error(`Nao foi possivel carregar a imagem ${path}`);
+    throw new Error(`Não foi possível carregar a imagem ${path}`);
   }
 
   return blobToDataUrl(await response.blob());
@@ -235,10 +235,13 @@ const buildDetailRows = (os) => [
   ['Status', getServiceOrderStatusLabel(os.status)],
   ['Tipo de OS', SERVICE_TYPE_LABELS[os.osType] || normalizeValue(os.osType)],
   ['Prazo', DEADLINE_LABELS[os.deadline] || normalizeValue(os.deadline)],
-  ['Duracao prevista', os.durationMinutes ? `${os.durationMinutes} minutos` : 'Nao informado'],
+  [
+    'Duração prevista',
+    os.durationMinutes ? `${os.durationMinutes} minutos` : 'Não informado',
+  ],
   ['Agendamento', formatDateTime(os.scheduleAt)],
-  ['Horario informado', normalizeValue(os.scheduleTimeText)],
-  ['Responsavel', getPersonLabel(os.assignedTo)],
+  ['Horário informado', normalizeValue(os.scheduleTimeText)],
+  ['Responsável', getPersonLabel(os.assignedTo)],
   ['Criada por', getPersonLabel(os.createdBy)],
   ['Colaborador legado', normalizeValue(os.collaborator)],
   ['Criada em', formatDateTime(os.createdAt)],
@@ -248,7 +251,7 @@ const buildDetailRows = (os) => [
 export const downloadServiceOrderPdf = async (os) => {
   const [brandSymbol, watermark] = await Promise.all([
     loadImageDataUrl(BRAND_SYMBOL_PATH),
-    loadImageWithOpacity(WATERMARK_PATH, 0.18),
+    loadImageWithOpacity(WATERMARK_PATH, 0.34),
   ]);
 
   const doc = new jsPDF({ format: 'a4', unit: 'mm' });
@@ -275,7 +278,7 @@ export const downloadServiceOrderPdf = async (os) => {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     setTextColor(doc, COLORS.muted);
-    doc.text('Relatorio comercial da ordem de servico', marginX + 20, y + 8);
+    doc.text('Relatório comercial da ordem de serviço', marginX + 20, y + 8);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
@@ -285,7 +288,7 @@ export const downloadServiceOrderPdf = async (os) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     setTextColor(doc, COLORS.blueDark);
-    doc.text(serviceOrderId || 'Nao informado', 194, y + 7, { align: 'right' });
+    doc.text(serviceOrderId || 'Não informado', 194, y + 7, { align: 'right' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
@@ -317,7 +320,7 @@ export const downloadServiceOrderPdf = async (os) => {
     'Dados do cliente',
     marginX,
     y,
-    `Ordem de servico criada em ${formatDateTime(os.createdAt)}`,
+    `Ordem de serviço criada em ${formatDateTime(os.createdAt)}`,
   );
   y += 11;
 
@@ -327,7 +330,7 @@ export const downloadServiceOrderPdf = async (os) => {
     height: 42,
     items: [
       { bold: true, size: 10.5, value: normalizeValue(os.customer) },
-      { label: 'Identificador', value: serviceOrderId || 'Nao informado' },
+      { label: 'Identificador', value: serviceOrderId || 'Não informado' },
     ],
     title: 'Cliente',
     width: cardWidth,
@@ -339,16 +342,16 @@ export const downloadServiceOrderPdf = async (os) => {
     height: 42,
     items: [
       { bold: true, size: 10, value: normalizeValue(os.customer) },
-      { label: 'Endereco', value: normalizeValue(os.address) },
+      { label: 'Endereço', value: normalizeValue(os.address) },
     ],
-    title: 'Localizacao',
+    title: 'Localização',
     width: cardWidth,
     x: marginX + cardWidth + cardGap,
     y,
   });
   y += 54;
 
-  drawSectionTitle(doc, 'Informacoes de atendimento', marginX, y);
+  drawSectionTitle(doc, 'Informações de atendimento', marginX, y);
   drawStatusPill(doc, os.status, 194, y);
   y += 7;
 
@@ -375,7 +378,7 @@ export const downloadServiceOrderPdf = async (os) => {
   });
   drawMetricCard(doc, {
     label: 'Duracao',
-    value: os.durationMinutes ? `${os.durationMinutes} min` : 'Nao informado',
+    value: os.durationMinutes ? `${os.durationMinutes} min` : 'Não informado',
     width: metricWidth,
     x: marginX + (metricWidth + 4) * 2,
     y,
@@ -386,14 +389,14 @@ export const downloadServiceOrderPdf = async (os) => {
     items: [
       { bold: true, size: 9.5, value: getPersonLabel(os.assignedTo) },
     ],
-    title: 'Responsavel',
+    title: 'Responsável',
     width: contentWidth - metricWidth * 3 - 12,
     x: marginX + (metricWidth + 4) * 3,
     y,
   });
   y += 36;
 
-  drawSectionTitle(doc, 'Descricao da OS', marginX, y);
+  drawSectionTitle(doc, 'Descrição da OS', marginX, y);
   y += 7;
   const descriptionLines = doc.splitTextToSize(normalizeValue(os.description), contentWidth - 10);
   const descriptionHeight = Math.max(30, 13 + descriptionLines.length * 5);
@@ -431,15 +434,6 @@ export const downloadServiceOrderPdf = async (os) => {
   addPageIfNeeded(18);
   setDrawColor(doc, COLORS.border);
   doc.line(marginX, 278, pageWidth - marginX, 278);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  setTextColor(doc, COLORS.blue);
-  doc.text('FULLTECH CONTROL', marginX, 285);
-  doc.setFont('helvetica', 'normal');
-  setTextColor(doc, COLORS.muted);
-  doc.text('Documento gerado automaticamente pelo sistema Fulltech Control.', 194, 285, {
-    align: 'right',
-  });
 
   const fileId = safeFilePart(os.identifier || os.id?.slice(0, 8) || 'servico');
   doc.save(`ordem-servico-${fileId}.pdf`);
