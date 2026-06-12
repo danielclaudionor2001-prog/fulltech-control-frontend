@@ -1,8 +1,9 @@
 export const SERVICE_ORDER_STATUS_LABELS = {
   CANCELED: 'Cancelada',
-  DONE: 'Finalizada',
+  DONE: 'Finalizado',
   IN_PROGRESS: 'Em andamento',
   OPEN: 'Pendente',
+  WITH_PENDING: 'Com pendência',
 };
 
 export const SERVICE_ORDER_STATUS_STEPS = [
@@ -20,6 +21,11 @@ export const SERVICE_ORDER_STATUS_STEPS = [
     description: 'Serviço concluído e OS encerrada.',
     label: SERVICE_ORDER_STATUS_LABELS.DONE,
     status: 'DONE',
+  },
+  {
+    description: 'OS encerrada com pendência registrada.',
+    label: SERVICE_ORDER_STATUS_LABELS.WITH_PENDING,
+    status: 'WITH_PENDING',
   },
   {
     description: 'OS encerrada sem execução.',

@@ -56,17 +56,24 @@ function normalizeAccessError(error) {
 const initialResolvedState = {
   appUser: null,
   error: '',
+  resolvedSessionId: null,
   resolvedUserId: null,
   status: 'idle',
 };
 
 export function AppAuthProvider({ children }) {
-  const { getToken, isLoaded: isAuthLoaded, isSignedIn } = useAuth();
+  const {
+    getToken,
+    isLoaded: isAuthLoaded,
+    isSignedIn,
+    sessionId,
+    userId,
+  } = useAuth();
   const { isLoaded: isUserLoaded, user } = useUser();
   const [state, setState] = useState(initialResolvedState);
 
   const resolveCurrentUser = useCallback(async () => {
-    if (!isSignedIn || !user?.id) {
+    if (!isSignedIn || !sessionId || !userId) {
       return;
     }
 
@@ -75,7 +82,8 @@ export function AppAuthProvider({ children }) {
       setState({
         appUser,
         error: '',
-        resolvedUserId: user.id,
+        resolvedSessionId: sessionId,
+        resolvedUserId: appUser.clerkUserId ?? userId,
         status: 'ready',
       });
     } catch (error) {
@@ -84,14 +92,20 @@ export function AppAuthProvider({ children }) {
       setState({
         appUser: null,
         error: normalizedError.message,
-        resolvedUserId: user.id,
+        resolvedSessionId: sessionId,
+        resolvedUserId: userId,
         status: normalizedError.status,
       });
     }
-  }, [getToken, isSignedIn, user]);
+  }, [getToken, isSignedIn, sessionId, userId]);
 
   useEffect(() => {
-    if (!isAuthLoaded || !isUserLoaded || !isSignedIn || !user?.id) {
+    if (!isAuthLoaded || !isUserLoaded) {
+      return;
+    }
+
+    if (!isSignedIn || !sessionId || !userId) {
+      setState(initialResolvedState);
       return;
     }
 
@@ -107,7 +121,8 @@ export function AppAuthProvider({ children }) {
         setState({
           appUser,
           error: '',
-          resolvedUserId: user.id,
+          resolvedSessionId: sessionId,
+          resolvedUserId: appUser.clerkUserId ?? userId,
           status: 'ready',
         });
       } catch (error) {
@@ -120,7 +135,8 @@ export function AppAuthProvider({ children }) {
         setState({
           appUser: null,
           error: normalizedError.message,
-          resolvedUserId: user.id,
+          resolvedSessionId: sessionId,
+          resolvedUserId: userId,
           status: normalizedError.status,
         });
       }
@@ -131,7 +147,27 @@ export function AppAuthProvider({ children }) {
     return () => {
       isCancelled = true;
     };
-  }, [getToken, isAuthLoaded, isSignedIn, isUserLoaded, user?.id]);
+  }, [getToken, isAuthLoaded, isSignedIn, isUserLoaded, sessionId, userId]);
+
+  useEffect(() => {
+    if (!isSignedIn || !sessionId || !userId) {
+      return undefined;
+    }
+
+    const refreshVisibleTab = () => {
+      if (document.visibilityState === 'visible') {
+        void resolveCurrentUser();
+      }
+    };
+
+    window.addEventListener('focus', refreshVisibleTab);
+    document.addEventListener('visibilitychange', refreshVisibleTab);
+
+    return () => {
+      window.removeEventListener('focus', refreshVisibleTab);
+      document.removeEventListener('visibilitychange', refreshVisibleTab);
+    };
+  }, [isSignedIn, resolveCurrentUser, sessionId, userId]);
 
   const status = useMemo(() => {
     if (!isAuthLoaded || !isUserLoaded) {
@@ -142,12 +178,24 @@ export function AppAuthProvider({ children }) {
       return 'signed_out';
     }
 
-    if (state.resolvedUserId !== user?.id) {
+    if (
+      state.resolvedSessionId !== sessionId ||
+      state.resolvedUserId !== userId
+    ) {
       return 'loading';
     }
 
     return state.status;
-  }, [isAuthLoaded, isSignedIn, isUserLoaded, state.resolvedUserId, state.status, user?.id]);
+  }, [
+    isAuthLoaded,
+    isSignedIn,
+    isUserLoaded,
+    sessionId,
+    state.resolvedSessionId,
+    state.resolvedUserId,
+    state.status,
+    userId,
+  ]);
 
   const value = useMemo(
     () => ({

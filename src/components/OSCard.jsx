@@ -10,6 +10,7 @@ import {
 import { useToast } from './ToastProvider';
 import ButtonSpinner from './ButtonSpinner';
 import OSDetailsModal from './OSDetailsModal';
+import TechnicianConclusionModal from './TechnicianConclusionModal';
 import {
   formatServiceOrderDateTime,
   getServiceOrderStatusLabel,
@@ -24,6 +25,8 @@ const getStatusClassName = (status) => {
       return 'status-badge status-progress';
     case 'DONE':
       return 'status-badge status-done';
+    case 'WITH_PENDING':
+      return 'status-badge status-pending';
     case 'CANCELED':
       return 'status-badge status-canceled';
     default:
@@ -40,6 +43,7 @@ export default function OSCard({
   os,
 }) {
   const { showError } = useToast();
+  const [isConclusionOpen, setIsConclusionOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
   const statusLabel = os.statusLabel || getServiceOrderStatusLabel(os.status);
@@ -67,6 +71,17 @@ export default function OSCard({
     } finally {
       setIsPdfLoading(false);
     }
+  };
+
+  const handleConclusionSubmit = (payload) => {
+    const result = onStatusUpdate?.(os.id, payload.status, payload);
+
+    if (result && typeof result.then === 'function') {
+      void result.then(() => setIsConclusionOpen(false)).catch(() => {});
+      return;
+    }
+
+    setIsConclusionOpen(false);
   };
 
   return (
@@ -103,7 +118,7 @@ export default function OSCard({
           {technicianLabel ? (
             <div className="os-card-meta-item">
               <User size={16} />
-              <span>Responsável: {technicianLabel}</span>
+              <span>Técnico responsável: {technicianLabel}</span>
             </div>
           ) : null}
         </div>
@@ -119,7 +134,7 @@ export default function OSCard({
             Ver dados
           </button>
 
-          {os.status === 'DONE' ? (
+          {os.status === 'DONE' || os.status === 'WITH_PENDING' ? (
             <button
               className="btn btn-primary"
               disabled={isActionBusy || isPdfLoading}
@@ -154,7 +169,7 @@ export default function OSCard({
             <button
               className="btn btn-primary"
               disabled={isActionBusy || isPdfLoading}
-              onClick={() => void onStatusUpdate(os.id, 'DONE')}
+              onClick={() => setIsConclusionOpen(true)}
               type="button"
             >
               {busyAction === 'done' ? <ButtonSpinner /> : null}
@@ -174,22 +189,20 @@ export default function OSCard({
             </button>
           ) : null}
 
-          {!isTechnician && os.status === 'IN_PROGRESS' && onStatusUpdate ? (
-            <button
-              className="btn btn-primary"
-              disabled={isActionBusy || isPdfLoading}
-              onClick={() => void onStatusUpdate(os.id, 'DONE')}
-              type="button"
-            >
-              {busyAction === 'done' ? <ButtonSpinner /> : null}
-              {busyAction === 'done' ? 'Finalizando...' : 'Finalizar OS'}
-            </button>
-          ) : null}
         </div>
       </article>
 
       {isDetailsOpen ? (
         <OSDetailsModal onClose={() => setIsDetailsOpen(false)} os={os} />
+      ) : null}
+
+      {isConclusionOpen ? (
+        <TechnicianConclusionModal
+          isSubmitting={busyAction === 'done'}
+          onClose={() => setIsConclusionOpen(false)}
+          onSubmit={handleConclusionSubmit}
+          os={os}
+        />
       ) : null}
     </>
   );

@@ -16,10 +16,10 @@ import { useToast } from '../components/ToastProvider';
 import { createServiceOrder, getCustomers, getUsers } from '../services/api';
 
 const ORDER_TYPE_OPTIONS = [
-  { label: 'Instalação', value: 'instalacao' },
-  { label: 'Manutenção', value: 'manutencao' },
+  { label: 'Manutenção mensal', value: 'manutencao_mensal' },
+  { label: 'Serviços/Instalações', value: 'servicos_interacao' },
   { label: 'Vistoria', value: 'vistoria' },
-  { label: 'Suporte', value: 'suporte' },
+  { label: 'Atendimento de chamado', value: 'atendimento_chamado' },
 ];
 
 const DEADLINE_OPTIONS = [
@@ -54,10 +54,6 @@ const getMissingFields = (formData) => {
     missingFields.push('descrição');
   }
 
-  if (!formData.durationMinutes) {
-    missingFields.push('duração estimada');
-  }
-
   if (!formData.scheduleDate) {
     missingFields.push('data do agendamento');
   }
@@ -86,10 +82,11 @@ export default function OSForm() {
     address: '',
     assignedToId: '',
     customer: '',
+    customerEmail: '',
     customerId: '',
+    customerPhones: [],
     deadline: '',
     description: '',
-    durationMinutes: '',
     identifier: '',
     osType: '',
     scheduleDate: getTodayInputValue(),
@@ -191,9 +188,16 @@ export default function OSForm() {
   const assignableUserOptions = useMemo(
     () => [
       { label: 'Sem responsável definido', value: '' },
-      ...assignableUsers.filter((user) => user.isActive).map((user) => {
+      ...assignableUsers
+        .filter(
+          (user) =>
+            user.isActive &&
+            (user.role === 'TECH' || user.role === 'SUPERVISOR'),
+        )
+        .map((user) => {
         const name = user.name || user.email || user.clerkUserId;
-        const roleLabel = user.role === 'ADMIN' ? 'Administrador' : 'Técnico';
+        const roleLabel =
+          user.role === 'SUPERVISOR' ? 'Supervisor' : 'Técnico';
 
         return {
           label: `${name} (${roleLabel})`,
@@ -266,7 +270,9 @@ export default function OSForm() {
       ...previous,
       address: exactMatch?.address || previous.address,
       customer: value,
+      customerEmail: exactMatch?.email || '',
       customerId: exactMatch?.id || '',
+      customerPhones: exactMatch?.phones || [],
     }));
   };
 
@@ -275,7 +281,9 @@ export default function OSForm() {
       ...previous,
       address: customer.address || previous.address,
       customer: customer.name,
+      customerEmail: customer.email || '',
       customerId: customer.id,
+      customerPhones: customer.phones || [],
     }));
     setIsCustomerMenuOpen(false);
   };
@@ -479,19 +487,6 @@ export default function OSForm() {
 
               <div className="os-row cols-3b">
                 <label className="simple-form-field">
-                  <span>Duração estimada (min) *</span>
-                  <input
-                    className="form-control"
-                    min="1"
-                    name="durationMinutes"
-                    onChange={handleChange}
-                    placeholder="60"
-                    type="number"
-                    value={formData.durationMinutes}
-                  />
-                </label>
-
-                <label className="simple-form-field">
                   <span>Data do agendamento *</span>
                   <input
                     className="form-control"
@@ -517,7 +512,7 @@ export default function OSForm() {
               {isAdmin ? (
                 <div className="os-row cols-1">
                   <label className="simple-form-field">
-                    <span>Responsável pela OS</span>
+                    <span>Técnico responsável</span>
                     <SelectField
                       disabled={isUsersLoading}
                       onChange={(value) =>

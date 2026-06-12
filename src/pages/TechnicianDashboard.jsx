@@ -42,6 +42,8 @@ export default function TechnicianDashboard() {
   const [pageError, setPageError] = useState('');
 
   const isInitialLoading = loading && orders.length === 0;
+  const pageTitle =
+    appUser?.role === 'SUPERVISOR' ? 'Painel do supervisor' : 'Painel do técnico';
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
@@ -190,17 +192,24 @@ export default function TechnicianDashboard() {
     }
   };
 
-  const handleStatusUpdate = async (id, status) => {
+  const handleStatusUpdate = async (id, status, conclusionData = {}) => {
     setBusyOrderId(id);
-    setBusyOrderAction(status === 'DONE' ? 'done' : 'progress');
+    setBusyOrderAction(
+      status === 'DONE' || status === 'WITH_PENDING' ? 'done' : 'progress',
+    );
 
     try {
-      await updateServiceOrder(id, { status }, getToken);
+      await updateServiceOrder(id, { ...conclusionData, status }, getToken);
       await fetchOrders();
       showSuccess('Ordem de serviço atualizada.');
     } catch (error) {
       console.error('Failed to update service order', error);
-      showError('Não foi possível atualizar a OS agora.');
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível atualizar a OS agora.';
+      showError(message || 'Não foi possível atualizar a OS agora.');
+      throw error;
     } finally {
       setBusyOrderId('');
       setBusyOrderAction('');
@@ -220,7 +229,7 @@ export default function TechnicianDashboard() {
         <div className="page-hero">
           <div>
             <span className="page-eyebrow">Atendimento em campo</span>
-            <h1 className="page-title">Painel do técnico</h1>
+            <h1 className="page-title">{pageTitle}</h1>
             <p className="page-subtitle">
               Para iniciar um atendimento, o navegador precisa liberar sua
               localização e mantê-la ativa durante a execução.

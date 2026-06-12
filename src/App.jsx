@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import RequireRole from './auth/RequireRole';
 import Layout from './components/Layout';
 import AccessListPage from './pages/AccessListPage';
@@ -61,7 +61,7 @@ function App() {
         <Route
           path="/tech"
           element={(
-            <RequireRole allowedRoles={['TECH']}>
+            <RequireRole allowedRoles={['SUPERVISOR', 'TECH']}>
               <TechnicianDashboard />
             </RequireRole>
           )}
@@ -69,8 +69,8 @@ function App() {
         <Route
           path="/tech/create"
           element={(
-            <RequireRole allowedRoles={['TECH']}>
-              <OSForm />
+            <RequireRole allowedRoles={['ADMIN']}>
+              <Navigate replace to="/admin/create" />
             </RequireRole>
           )}
         />

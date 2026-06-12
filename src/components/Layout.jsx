@@ -14,6 +14,12 @@ export default function Layout() {
   const location = useLocation();
   const { appUser, clerkUser } = useAppAuth();
   const isAdmin = appUser?.role === 'ADMIN';
+  const roleLabel =
+    appUser?.role === 'ADMIN'
+      ? 'Administrador'
+      : appUser?.role === 'SUPERVISOR'
+        ? 'Supervisor'
+        : 'Técnico';
   const displayName =
     appUser?.name ||
     clerkUser?.fullName ||
@@ -29,7 +35,6 @@ export default function Layout() {
       ]
     : [
         { icon: Home, label: 'Inicio', to: '/tech' },
-        { icon: Plus, label: 'Nova OS', to: '/tech/create' },
       ];
 
   const isTabActive = (to) => {
@@ -60,7 +65,7 @@ export default function Layout() {
             <div className="nav-user-copy">
               <span className="nav-user-name">{displayName}</span>
               <span className="nav-user-role">
-                {isAdmin ? 'Administrador' : 'Técnico'}
+                {roleLabel}
               </span>
             </div>
             <UserButton afterSignOutUrl="/" />

@@ -26,10 +26,33 @@ const ROLE_OPTIONS = [
     value: 'TECH',
   },
   {
+    label: 'Supervisor',
+    value: 'SUPERVISOR',
+  },
+  {
     label: 'Administrador',
     value: 'ADMIN',
   },
 ];
+
+const getRoleLabel = (role) => {
+  if (role === 'ADMIN') {
+    return 'Administrador';
+  }
+
+  if (role === 'SUPERVISOR') {
+    return 'Supervisor';
+  }
+
+  return 'Técnico';
+};
+
+const initialOrderFilters = {
+  assignedToId: '',
+  customer: '',
+  endDate: '',
+  startDate: '',
+};
 
 export default function AdminDashboard() {
   const { getToken } = useAuth();
@@ -42,6 +65,8 @@ export default function AdminDashboard() {
   const [busyUserId, setBusyUserId] = useState('');
   const [busyOrderId, setBusyOrderId] = useState('');
   const [busyOrderAction, setBusyOrderAction] = useState('');
+  const [filterDrafts, setFilterDrafts] = useState(initialOrderFilters);
+  const [orderFilters, setOrderFilters] = useState(initialOrderFilters);
   const [pageError, setPageError] = useState('');
 
   const isInitialLoading = loading && orders.length === 0 && users.length === 0;
@@ -52,7 +77,7 @@ export default function AdminDashboard() {
 
     try {
       const [ordersData, usersData] = await Promise.all([
-        getServiceOrders(getToken),
+        getServiceOrders(getToken, orderFilters),
         getUsers(getToken),
       ]);
 
@@ -68,7 +93,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [getToken]);
+  }, [getToken, orderFilters]);
 
   useEffect(() => {
     void fetchDashboard().catch(() => {});
@@ -91,6 +116,10 @@ export default function AdminDashboard() {
     () => users.filter((user) => user.role === 'TECH'),
     [users],
   );
+  const supervisorUsers = useMemo(
+    () => users.filter((user) => user.role === 'SUPERVISOR'),
+    [users],
+  );
   const adminUsers = useMemo(
     () => users.filter((user) => user.role === 'ADMIN'),
     [users],
@@ -111,6 +140,34 @@ export default function AdminDashboard() {
     () => orders.filter((order) => order.status === 'CANCELED'),
     [orders],
   );
+  const technicianFilterOptions = useMemo(
+    () => [
+      { label: 'Todos', value: '' },
+      ...users
+        .filter((user) => user.role === 'TECH' || user.role === 'SUPERVISOR')
+        .map((user) => ({
+          label: `${user.name || user.email || user.clerkUserId} (${getRoleLabel(user.role)})`,
+          value: user.id,
+        })),
+    ],
+    [users],
+  );
+
+  const handleFilterChange = (name, value) => {
+    setFilterDrafts((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+  };
+
+  const handleApplyFilters = () => {
+    setOrderFilters(filterDrafts);
+  };
+
+  const handleClearFilters = () => {
+    setFilterDrafts(initialOrderFilters);
+    setOrderFilters(initialOrderFilters);
+  };
 
   const handleUpdateRole = async (id) => {
     const role = roleDrafts[id];
@@ -314,6 +371,14 @@ export default function AdminDashboard() {
               )}
             </div>
             <div className="mini-inline-pill">
+              <span>Supervisores</span>
+              {isInitialLoading ? (
+                <SkeletonBlock className="skeleton-number" />
+              ) : (
+                <strong>{supervisorUsers.length}</strong>
+              )}
+            </div>
+            <div className="mini-inline-pill">
               <span>Registrados</span>
               {isInitialLoading ? (
                 <SkeletonBlock className="skeleton-number" />
@@ -349,7 +414,7 @@ export default function AdminDashboard() {
                     <strong>{user.name || user.email || user.clerkUserId}</strong>
                     <p>
                       {(user.email || 'Sem e-mail')} •{' '}
-                      {user.role === 'ADMIN' ? 'Administrador' : 'Técnico'}
+                      {getRoleLabel(user.role)}
                     </p>
                   </div>
 
@@ -386,6 +451,84 @@ export default function AdminDashboard() {
           )}
         </section>
       </div>
+
+      <section className="section-card">
+        <div className="section-title">
+          <Clock3 size={18} />
+          <div>
+            <h3>Filtros de ordens de serviço</h3>
+            <p className="section-subtitle">
+              Refine a visão por técnico responsável, cliente e período de
+              agendamento.
+            </p>
+          </div>
+        </div>
+
+        <div className="os-row cols-3b">
+          <label className="simple-form-field">
+            <span>Técnico</span>
+            <SelectField
+              onChange={(value) => handleFilterChange('assignedToId', value)}
+              options={technicianFilterOptions}
+              placeholder="Todos"
+              value={filterDrafts.assignedToId}
+            />
+          </label>
+
+          <label className="simple-form-field">
+            <span>Nome do cliente</span>
+            <input
+              className="form-control"
+              onChange={(event) => handleFilterChange('customer', event.target.value)}
+              placeholder="Buscar cliente"
+              type="search"
+              value={filterDrafts.customer}
+            />
+          </label>
+
+          <label className="simple-form-field">
+            <span>Data inicial</span>
+            <input
+              className="form-control"
+              onChange={(event) => handleFilterChange('startDate', event.target.value)}
+              type="date"
+              value={filterDrafts.startDate}
+            />
+          </label>
+        </div>
+
+        <div className="os-row cols-3b">
+          <label className="simple-form-field">
+            <span>Data final</span>
+            <input
+              className="form-control"
+              onChange={(event) => handleFilterChange('endDate', event.target.value)}
+              type="date"
+              value={filterDrafts.endDate}
+            />
+          </label>
+
+          <div className="simple-form-field">
+            <span>Ações</span>
+            <div className="table-actions">
+              <button
+                className="btn btn-primary btn-compact"
+                onClick={handleApplyFilters}
+                type="button"
+              >
+                Aplicar filtros
+              </button>
+              <button
+                className="btn btn-secondary btn-compact"
+                onClick={handleClearFilters}
+                type="button"
+              >
+                Limpar
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="section-card section-card-orders mobile-orders-first">
         <div className="section-title">

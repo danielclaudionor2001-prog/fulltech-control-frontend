@@ -1,30 +1,41 @@
 import { useAuth } from '@clerk/clerk-react';
-import { Building2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Building2, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ButtonSpinner from '../components/ButtonSpinner';
 import ModalShell from '../components/ModalShell';
 import SkeletonBlock from '../components/SkeletonBlock';
 import { useToast } from '../components/ToastProvider';
-import { createCustomer, deleteCustomer, getCustomers } from '../services/api';
+import {
+  createCustomer,
+  deleteCustomer,
+  getCustomers,
+  updateCustomer,
+} from '../services/api';
 
 const initialFormState = {
   address: '',
+  email: '',
   name: '',
+  phones: [''],
 };
 
 const formatDateTime = (dateLike) => {
   if (!dateLike) {
-    return '—';
+    return '-';
   }
 
   return new Date(dateLike).toLocaleString('pt-BR');
 };
+
+const normalizePhones = (phones) =>
+  Array.from(new Set(phones.map((phone) => phone.trim()).filter(Boolean)));
 
 export default function CustomersPage() {
   const { getToken } = useAuth();
   const { showError, showSuccess, showWarning } = useToast();
   const [customers, setCustomers] = useState([]);
   const [formData, setFormData] = useState(initialFormState);
+  const [editingCustomer, setEditingCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -33,6 +44,7 @@ export default function CustomersPage() {
   const [pageError, setPageError] = useState('');
 
   const isInitialLoading = loading && customers.length === 0;
+  const isEditing = Boolean(editingCustomer);
 
   const orderedCustomers = useMemo(
     () => [...customers].sort((left, right) => left.name.localeCompare(right.name)),
@@ -72,8 +84,26 @@ export default function CustomersPage() {
     }
   };
 
+  const openCreateModal = () => {
+    setEditingCustomer(null);
+    setFormData(initialFormState);
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (customer) => {
+    setEditingCustomer(customer);
+    setFormData({
+      address: customer.address || '',
+      email: customer.email || '',
+      name: customer.name || '',
+      phones: customer.phones?.length ? customer.phones : [''],
+    });
+    setIsModalOpen(true);
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
+    setEditingCustomer(null);
     setFormData(initialFormState);
   };
 
@@ -85,11 +115,38 @@ export default function CustomersPage() {
     }));
   };
 
+  const handlePhoneChange = (index, value) => {
+    setFormData((previous) => ({
+      ...previous,
+      phones: previous.phones.map((phone, currentIndex) =>
+        currentIndex === index ? value : phone,
+      ),
+    }));
+  };
+
+  const addPhone = () => {
+    setFormData((previous) => ({
+      ...previous,
+      phones: [...previous.phones, ''],
+    }));
+  };
+
+  const removePhone = (index) => {
+    setFormData((previous) => {
+      const nextPhones = previous.phones.filter((_, currentIndex) => currentIndex !== index);
+      return {
+        ...previous,
+        phones: nextPhones.length ? nextPhones : [''],
+      };
+    });
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!formData.name.trim() || !formData.address.trim()) {
-      showWarning('Preencha os campos obrigatórios de cliente.');
+    const phones = normalizePhones(formData.phones);
+    if (!formData.name.trim() || !formData.address.trim() || phones.length === 0) {
+      showWarning('Preencha nome, endereço e ao menos um telefone.');
       return;
     }
 
@@ -99,16 +156,32 @@ export default function CustomersPage() {
 
     setIsSubmitting(true);
 
+    const payload = {
+      address: formData.address,
+      email: formData.email || undefined,
+      name: formData.name,
+      phones,
+    };
+
     try {
-      await createCustomer(formData, getToken);
+      if (editingCustomer) {
+        await updateCustomer(editingCustomer.id, payload, getToken);
+      } else {
+        await createCustomer(payload, getToken);
+      }
+
       await fetchCustomers();
-      showSuccess('Cliente cadastrado com sucesso.');
+      showSuccess(
+        editingCustomer
+          ? 'Cliente atualizado com sucesso.'
+          : 'Cliente cadastrado com sucesso.',
+      );
       closeModal();
     } catch (submitError) {
       const message =
         submitError instanceof Error
           ? submitError.message
-          : 'Falha ao cadastrar cliente.';
+          : 'Falha ao salvar cliente.';
       showError(message);
     } finally {
       setIsSubmitting(false);
@@ -142,8 +215,8 @@ export default function CustomersPage() {
           <span className="page-eyebrow">Base operacional</span>
           <h1 className="page-title">Clientes</h1>
           <p className="page-subtitle">
-            Mantenha uma base enxuta de clientes e endereços para acelerar a
-            abertura das ordens de serviço.
+            Mantenha dados de contato completos para acelerar a abertura e o
+            acompanhamento das ordens de serviço.
           </p>
         </div>
 
@@ -161,7 +234,7 @@ export default function CustomersPage() {
 
           <button
             className="btn btn-primary btn-icon"
-            onClick={() => setIsModalOpen(true)}
+            onClick={openCreateModal}
             type="button"
           >
             <Plus size={18} />
@@ -191,8 +264,8 @@ export default function CustomersPage() {
                   <tr>
                     <th>Cliente</th>
                     <th>Endereço</th>
-                    <th>Criado em</th>
-                    <th>Atualizado em</th>
+                    <th>Telefone</th>
+                    <th>E-mail</th>
                     <th>Ações</th>
                   </tr>
                 </thead>
@@ -200,26 +273,11 @@ export default function CustomersPage() {
                 <tbody>
                   {Array.from({ length: 4 }).map((_, index) => (
                     <tr key={`customer-skeleton-${index}`}>
-                      <td className="table-loading-cell">
-                        <div className="table-primary-cell">
+                      {Array.from({ length: 5 }).map((__, cellIndex) => (
+                        <td className="table-loading-cell" key={cellIndex}>
                           <SkeletonBlock className="skeleton-line-short" />
-                          <SkeletonBlock className="skeleton-table-note" />
-                        </div>
-                      </td>
-                      <td className="table-loading-cell">
-                        <SkeletonBlock className="skeleton-line" />
-                      </td>
-                      <td className="table-loading-cell">
-                        <SkeletonBlock className="skeleton-line-short" />
-                      </td>
-                      <td className="table-loading-cell">
-                        <SkeletonBlock className="skeleton-line-short" />
-                      </td>
-                      <td className="table-loading-cell">
-                        <div className="table-actions">
-                          <SkeletonBlock className="skeleton-button" />
-                        </div>
-                      </td>
+                        </td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
@@ -236,8 +294,8 @@ export default function CustomersPage() {
                   <tr>
                     <th>Cliente</th>
                     <th>Endereço</th>
-                    <th>Criado em</th>
-                    <th>Atualizado em</th>
+                    <th>Telefone</th>
+                    <th>E-mail</th>
                     <th>Ações</th>
                   </tr>
                 </thead>
@@ -245,6 +303,9 @@ export default function CustomersPage() {
                 <tbody>
                   {orderedCustomers.map((customer) => {
                     const isBusy = busyCustomerId === customer.id;
+                    const phones = customer.phones?.length
+                      ? customer.phones.join(' / ')
+                      : 'Não informado';
 
                     return (
                       <tr key={customer.id}>
@@ -255,10 +316,20 @@ export default function CustomersPage() {
                           </div>
                         </td>
                         <td>{customer.address}</td>
-                        <td>{formatDateTime(customer.createdAt)}</td>
-                        <td>{formatDateTime(customer.updatedAt)}</td>
+                        <td>{phones}</td>
+                        <td>{customer.email || 'Não informado'}</td>
                         <td>
                           <div className="table-actions">
+                            <button
+                              className="btn btn-secondary btn-compact"
+                              disabled={isBusy}
+                              onClick={() => openEditModal(customer)}
+                              type="button"
+                            >
+                              <Pencil size={16} />
+                              Editar
+                            </button>
+
                             <button
                               className="btn btn-outline btn-compact"
                               disabled={isBusy}
@@ -281,11 +352,11 @@ export default function CustomersPage() {
       </section>
 
       <ModalShell
-        description="Nome e endereço já ficam disponíveis no autocomplete da OS."
+        description="Telefones, e-mail e endereço ficam disponíveis no fluxo da OS."
         icon={Building2}
         onClose={closeModal}
         open={isModalOpen}
-        title="Novo cliente"
+        title={isEditing ? 'Editar cliente' : 'Novo cliente'}
       >
         <form className="simple-form" onSubmit={handleSubmit}>
           <label className="simple-form-field">
@@ -308,9 +379,55 @@ export default function CustomersPage() {
             />
           </label>
 
+          <label className="simple-form-field">
+            <span>E-mail</span>
+            <input
+              name="email"
+              onChange={handleChange}
+              placeholder="cliente@empresa.com"
+              type="email"
+              value={formData.email}
+            />
+          </label>
+
+          <div className="simple-form-field">
+            <span>Telefone *</span>
+            {formData.phones.map((phone, index) => (
+              <div className="modal-actions" key={`phone-${index}`}>
+                <input
+                  onChange={(event) => handlePhoneChange(index, event.target.value)}
+                  placeholder="(00) 00000-0000"
+                  type="tel"
+                  value={phone}
+                />
+                <button
+                  className="btn btn-outline btn-compact"
+                  disabled={formData.phones.length === 1}
+                  onClick={() => removePhone(index)}
+                  type="button"
+                >
+                  Remover
+                </button>
+              </div>
+            ))}
+
+            <button
+              className="btn btn-secondary btn-compact"
+              onClick={addPhone}
+              type="button"
+            >
+              <Plus size={16} />
+              Adicionar telefone
+            </button>
+          </div>
+
           <button className="btn btn-primary" disabled={isSubmitting} type="submit">
             {isSubmitting ? <ButtonSpinner /> : null}
-            {isSubmitting ? 'Salvando...' : 'Cadastrar cliente'}
+            {isSubmitting
+              ? 'Salvando...'
+              : isEditing
+                ? 'Salvar alterações'
+                : 'Cadastrar cliente'}
           </button>
         </form>
       </ModalShell>

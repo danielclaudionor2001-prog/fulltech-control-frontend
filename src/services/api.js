@@ -28,13 +28,16 @@ const getErrorMessage = (text, status) => {
 
 const request = async (path, options = {}) => {
   const { body, getToken, headers, ...fetchOptions } = options;
-  const token = getToken ? await getToken() : null;
+  const token = getToken ? await getToken({ skipCache: true }) : null;
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...fetchOptions,
     body,
+    cache: fetchOptions.cache ?? 'no-store',
     headers: {
       ...(body ? { 'Content-Type': 'application/json' } : {}),
+      'Cache-Control': 'no-cache',
+      Pragma: 'no-cache',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(headers || {}),
     },
@@ -58,18 +61,25 @@ const normalizeServiceOrder = (order) => ({
   technicianId: order.assignedToId ?? null,
 });
 
-const toCreatePayload = (formData) => ({
-  address: formData.address || undefined,
-  assignedToId: formData.assignedToId || undefined,
-  customer: formData.customer,
-  deadline: formData.deadline || undefined,
-  description: formData.description,
-  durationMinutes: Number(formData.durationMinutes),
-  identifier: formData.identifier || undefined,
-  osType: formData.osType,
-  scheduleDate: formData.scheduleDate,
-  scheduleTime: formData.scheduleTime || undefined,
-});
+const toCreatePayload = (formData) => {
+  const customerPhones = Array.isArray(formData.customerPhones)
+    ? formData.customerPhones.filter((phone) => phone?.trim())
+    : [];
+
+  return {
+    address: formData.address || undefined,
+    assignedToId: formData.assignedToId || undefined,
+    customer: formData.customer,
+    customerEmail: formData.customerEmail || undefined,
+    ...(customerPhones.length ? { customerPhones } : {}),
+    deadline: formData.deadline || undefined,
+    description: formData.description,
+    identifier: formData.identifier || undefined,
+    osType: formData.osType,
+    scheduleDate: formData.scheduleDate,
+    scheduleTime: formData.scheduleTime || undefined,
+  };
+};
 
 export const getCurrentUser = (getToken) => request('/users/me', { getToken });
 
@@ -113,14 +123,32 @@ export const createCustomer = (payload, getToken) =>
     method: 'POST',
   });
 
+export const updateCustomer = (id, payload, getToken) =>
+  request(`/customers/${id}`, {
+    body: JSON.stringify(payload),
+    getToken,
+    method: 'PATCH',
+  });
+
 export const deleteCustomer = (id, getToken) =>
   request(`/customers/${id}`, {
     getToken,
     method: 'DELETE',
   });
 
-export const getServiceOrders = async (getToken) => {
-  const data = await request('/service-orders', { getToken });
+export const getServiceOrders = async (getToken, filters = {}) => {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) {
+      searchParams.set(key, value);
+    }
+  });
+
+  const query = searchParams.toString();
+  const data = await request(`/service-orders${query ? `?${query}` : ''}`, {
+    getToken,
+  });
   return data.map(normalizeServiceOrder);
 };
 

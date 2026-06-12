@@ -774,6 +774,19 @@ textarea {
   color: #8ca0c0;
 }
 
+.signature-canvas {
+  display: block;
+  width: 100%;
+  height: 180px;
+  min-height: 180px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
 .select-field {
   position: relative;
 }
@@ -1263,6 +1276,319 @@ textarea {
   color: var(--text);
   line-height: 1.55;
   overflow-wrap: anywhere;
+}
+
+.os-report-modal {
+  width: min(980px, 100%);
+}
+
+.os-report-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 1.9rem;
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.os-report-header,
+.os-report-section-heading,
+.os-report-brand,
+.os-report-number,
+.os-report-form-title,
+.os-report-person,
+.os-report-total-strip {
+  display: flex;
+  align-items: center;
+}
+
+.os-report-header {
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding-bottom: 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.os-report-brand {
+  gap: 0.85rem;
+  max-width: 320px;
+}
+
+.os-report-brand img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.os-report-brand strong,
+.os-report-header > strong,
+.os-report-number strong {
+  line-height: 1.4;
+}
+
+.os-report-number {
+  gap: 0.45rem;
+  color: var(--text-muted);
+}
+
+.os-report-number strong {
+  color: var(--text);
+}
+
+.os-report-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.os-report-section + .os-report-section {
+  margin-top: 0.65rem;
+}
+
+.os-report-section h3 {
+  font-size: 1.1rem;
+  line-height: 1.3;
+}
+
+.os-report-section-heading {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.os-report-section-heading > span,
+.os-report-signed-at {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.os-report-status {
+  color: var(--success-fg);
+  font-weight: 800;
+}
+
+.os-report-two-cols,
+.os-report-attendance-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.os-report-two-cols {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 0.35rem;
+}
+
+.os-report-attendance-grid {
+  grid-template-columns: 0.7fr 0.7fr 0.9fr minmax(260px, 1.9fr);
+}
+
+.os-report-card,
+.os-report-metric,
+.os-report-form-box,
+.os-report-signature-box,
+.os-report-total-strip,
+.os-report-empty {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.os-report-card {
+  min-height: 168px;
+  overflow: visible;
+  padding: 1.1rem;
+}
+
+.os-report-card-title {
+  display: block;
+  margin-bottom: 0.65rem;
+  color: var(--primary-500);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.os-report-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.62rem;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.os-report-card-body p {
+  overflow-wrap: anywhere;
+}
+
+.os-report-info-line {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.os-report-info-line span {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.os-report-info-line strong {
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.os-report-card-body span,
+.os-report-card-body p,
+.os-report-form-box,
+.os-report-total-strip,
+.os-report-empty,
+.os-report-attachment figcaption {
+  font-size: 0.9rem;
+}
+
+.os-report-metric {
+  min-height: 108px;
+  padding: 1rem 0.75rem;
+  text-align: center;
+}
+
+.os-report-metric span {
+  display: block;
+  color: var(--text-muted);
+  font-weight: 800;
+}
+
+.os-report-metric strong {
+  display: block;
+  margin-top: 0.75rem;
+  line-height: 1.5;
+}
+
+.os-report-person {
+  gap: 0.65rem;
+}
+
+.os-report-person svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.os-report-form-title {
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.os-report-form-title svg {
+  color: var(--primary-500);
+}
+
+.os-report-form-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.1rem 1.35rem;
+}
+
+.os-report-form-box strong:not(:first-child) {
+  margin-top: 0.45rem;
+}
+
+.os-report-checkline {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  line-height: 1.45;
+}
+
+.os-report-checkbox {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--primary-500);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.os-report-checkbox.is-checked {
+  background: var(--primary-500);
+}
+
+.os-report-checkbox.is-checked::after {
+  content: "";
+  width: 7px;
+  height: 4px;
+  border-left: 2px solid #ffffff;
+  border-bottom: 2px solid #ffffff;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.os-report-total-strip {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem;
+  color: var(--text-muted);
+}
+
+.os-report-total-strip strong {
+  color: var(--primary-600);
+}
+
+.os-report-attachments {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 150px));
+  gap: 1rem;
+}
+
+.os-report-attachment {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.os-report-attachment img {
+  width: 100%;
+  aspect-ratio: 1 / 0.86;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.25rem;
+  background: #ffffff;
+}
+
+.os-report-attachment figcaption {
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.os-report-signature-box {
+  min-height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.os-report-signature-box img {
+  max-width: 100%;
+  max-height: 138px;
+  object-fit: contain;
+}
+
+.os-report-signature-box span,
+.os-report-empty {
+  color: var(--text-muted);
+}
+
+.os-report-empty {
+  padding: 1rem;
 }
 
 .page-state {
@@ -1998,6 +2324,26 @@ textarea {
 
   .os-details-grid {
     grid-template-columns: 1fr;
+  }
+
+  .os-report-sheet {
+    padding: 1rem;
+  }
+
+  .os-report-header,
+  .os-report-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .os-report-two-cols,
+  .os-report-attendance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .os-report-card,
+  .os-report-metric {
+    min-height: 0;
   }
 
   .modal-actions {

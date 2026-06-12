@@ -17,7 +17,10 @@ const COLORS = {
 
 const SERVICE_TYPE_LABELS = {
   instalacao: 'Instalação',
+  atendimento_chamado: 'Atendimento de chamado',
   manutencao: 'Manutenção',
+  manutencao_mensal: 'Manutenção mensal',
+  servicos_interacao: 'Serviços/Instalações',
   suporte: 'Suporte',
   vistoria: 'Vistoria',
 };
@@ -88,6 +91,41 @@ const formatTime = (dateLike, fallback) => {
     hour: '2-digit',
     minute: '2-digit',
   });
+};
+
+const getImageFormat = (dataUrl) =>
+  String(dataUrl).startsWith('data:image/png') ? 'PNG' : 'JPEG';
+
+const getDefectSolution = (os) => {
+  if (os.defectSolution) {
+    return os.defectSolution;
+  }
+
+  if (os.defectAdjusted === true) {
+    return 'adjustment';
+  }
+
+  if (os.defectAdjusted === false) {
+    return 'repair';
+  }
+
+  return '';
+};
+
+const getEquipmentStatus = (os) => {
+  if (os.equipmentStatus) {
+    return os.equipmentStatus;
+  }
+
+  if (os.status === 'DONE') {
+    return 'running';
+  }
+
+  if (os.status === 'WITH_PENDING') {
+    return 'running_with_pending';
+  }
+
+  return '';
 };
 
 const blobToDataUrl = (blob) =>
@@ -212,9 +250,11 @@ const drawMetricCard = (doc, { label, value, width, x, y }) => {
   doc.text(label, x + width / 2, y + 9, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(9.2);
   setTextColor(doc, COLORS.blueDark);
-  doc.text(normalizeValue(value), x + width / 2, y + 18, { align: 'center' });
+  doc.text(doc.splitTextToSize(normalizeValue(value), width - 6), x + width / 2, y + 16, {
+    align: 'center',
+  });
 };
 
 const drawStatusPill = (doc, status, x, y) => {
@@ -230,24 +270,6 @@ const drawStatusPill = (doc, status, x, y) => {
   doc.text(label, x - width / 2, y, { align: 'center' });
 };
 
-const buildDetailRows = (os) => [
-  ['ID interno', normalizeValue(os.id)],
-  ['Status', getServiceOrderStatusLabel(os.status)],
-  ['Tipo de OS', SERVICE_TYPE_LABELS[os.osType] || normalizeValue(os.osType)],
-  ['Prazo', DEADLINE_LABELS[os.deadline] || normalizeValue(os.deadline)],
-  [
-    'Duração prevista',
-    os.durationMinutes ? `${os.durationMinutes} minutos` : 'Não informado',
-  ],
-  ['Agendamento', formatDateTime(os.scheduleAt)],
-  ['Horário informado', normalizeValue(os.scheduleTimeText)],
-  ['Responsável', getPersonLabel(os.assignedTo)],
-  ['Criada por', getPersonLabel(os.createdBy)],
-  ['Colaborador legado', normalizeValue(os.collaborator)],
-  ['Criada em', formatDateTime(os.createdAt)],
-  ['Atualizada em', formatDateTime(os.updatedAt)],
-];
-
 export const downloadServiceOrderPdf = async (os) => {
   const [brandSymbol, watermark] = await Promise.all([
     loadImageDataUrl(BRAND_SYMBOL_PATH),
@@ -261,6 +283,16 @@ export const downloadServiceOrderPdf = async (os) => {
   const contentWidth = pageWidth - marginX * 2;
   const serviceOrderId = os.identifier || os.id?.slice(0, 8)?.toUpperCase();
   const serviceType = SERVICE_TYPE_LABELS[os.osType] || normalizeValue(os.osType);
+  const defectSolution = getDefectSolution(os);
+  const equipmentStatus = getEquipmentStatus(os);
+  const isElevatorRunning = ['running', 'running_with_pending'].includes(
+    equipmentStatus,
+  );
+  const isElevatorStopped = [
+    'stopped',
+    'stopped_repair',
+    'waiting_authorization',
+  ].includes(equipmentStatus);
   let y = 18;
 
   const addBackground = () => {
@@ -278,7 +310,7 @@ export const downloadServiceOrderPdf = async (os) => {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     setTextColor(doc, COLORS.muted);
-    doc.text('Relatório comercial da ordem de serviço', marginX + 20, y + 8);
+    doc.text('Relatório da ordem de serviço', marginX + 20, y + 8);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
@@ -311,6 +343,103 @@ export const downloadServiceOrderPdf = async (os) => {
     y = 48;
   };
 
+  const drawCheckboxLine = (x, lineY, label, checked) => {
+    setDrawColor(doc, COLORS.blue);
+    doc.rect(x, lineY - 3, 3.2, 3.2);
+
+    if (checked) {
+      setFillColor(doc, COLORS.blue);
+      doc.rect(x + 0.45, lineY - 2.55, 2.3, 2.3, 'F');
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.3);
+    setTextColor(doc, COLORS.slate);
+    doc.text(label, x + 5.2, lineY);
+  };
+
+  const drawCheckboxGroup = (title, items) => {
+    const height = 11 + items.length * 8;
+    addPageIfNeeded(height + 8);
+    drawRoundedCard(doc, marginX + 7, y, contentWidth - 14, height);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    setTextColor(doc, COLORS.blueDark);
+    doc.text(title, marginX + 12, y + 8);
+
+    items.forEach((item, index) => {
+      drawCheckboxLine(marginX + 12, y + 16 + index * 8, item.label, item.checked);
+    });
+
+    y += height + 7;
+  };
+
+  const drawTotalsStrip = () => {
+    addPageIfNeeded(13);
+    drawRoundedCard(doc, marginX, y, contentWidth, 10);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.3);
+    setTextColor(doc, COLORS.muted);
+    doc.text('Valor total dos serviços: R$ 0,00', marginX + 4, y + 6.5);
+    setTextColor(doc, COLORS.blue);
+    doc.text('+', marginX + 60, y + 6.5);
+    setTextColor(doc, COLORS.muted);
+    doc.text('Valor total dos produtos: R$ 0,00', marginX + 66, y + 6.5);
+    setTextColor(doc, COLORS.blue);
+    doc.text('=', marginX + 126, y + 6.5);
+    setTextColor(doc, COLORS.muted);
+    doc.text('Valor total da atividade: R$ 0,00', marginX + 132, y + 6.5);
+    y += 17;
+  };
+
+  const drawAttachments = () => {
+    addPageIfNeeded(28);
+    drawSectionTitle(doc, 'Anexos', marginX, y);
+    y += 7;
+
+    if (!os.completionPhotos?.length) {
+      drawRoundedCard(doc, marginX, y, contentWidth, 12);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      setTextColor(doc, COLORS.muted);
+      doc.text('Nenhum anexo informado.', marginX + 5, y + 7.8);
+      y += 20;
+      return;
+    }
+
+    const cardWidth = 34;
+    const cardHeight = 36;
+    const gap = 8;
+    let x = marginX;
+    os.completionPhotos.forEach((photo, index) => {
+      if (x + cardWidth > pageWidth - marginX) {
+        x = marginX;
+        y += cardHeight + 10;
+      }
+
+      addPageIfNeeded(cardHeight + 12);
+      drawRoundedCard(doc, x, y, cardWidth, cardHeight);
+
+      try {
+        doc.addImage(photo, getImageFormat(photo), x + 2, y + 2, cardWidth - 4, 25);
+      } catch {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        setTextColor(doc, COLORS.muted);
+        doc.text('Imagem', x + cardWidth / 2, y + 15, { align: 'center' });
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.8);
+      setTextColor(doc, COLORS.slate);
+      doc.text(`ANEXO ${index + 1}`, x, y + cardHeight + 5);
+      x += cardWidth + gap;
+    });
+
+    y += cardHeight + 17;
+  };
+
   addBackground();
   drawHeader();
   y = 50;
@@ -327,10 +456,12 @@ export const downloadServiceOrderPdf = async (os) => {
   const cardGap = 4;
   const cardWidth = (contentWidth - cardGap) / 2;
   drawInfoCard(doc, {
-    height: 42,
+    height: 50,
     items: [
       { bold: true, size: 10.5, value: normalizeValue(os.customer) },
       { label: 'Identificador', value: serviceOrderId || 'Não informado' },
+      { label: 'Telefone', value: normalizeValue(os.customerPhones?.join(' / ')) },
+      { label: 'E-mail', value: normalizeValue(os.customerEmail) },
     ],
     title: 'Cliente',
     width: cardWidth,
@@ -339,7 +470,7 @@ export const downloadServiceOrderPdf = async (os) => {
   });
 
   drawInfoCard(doc, {
-    height: 42,
+    height: 50,
     items: [
       { bold: true, size: 10, value: normalizeValue(os.customer) },
       { label: 'Endereço', value: normalizeValue(os.address) },
@@ -349,7 +480,7 @@ export const downloadServiceOrderPdf = async (os) => {
     x: marginX + cardWidth + cardGap,
     y,
   });
-  y += 54;
+  y += 62;
 
   drawSectionTitle(doc, 'Informações de atendimento', marginX, y);
   drawStatusPill(doc, os.status, 194, y);
@@ -377,19 +508,18 @@ export const downloadServiceOrderPdf = async (os) => {
     y,
   });
   drawMetricCard(doc, {
-    label: 'Duracao',
-    value: os.durationMinutes ? `${os.durationMinutes} min` : 'Não informado',
+    label: 'Fim',
+    value: formatDateTime(os.updatedAt),
     width: metricWidth,
     x: marginX + (metricWidth + 4) * 2,
     y,
   });
-
   drawInfoCard(doc, {
     height: 25,
     items: [
       { bold: true, size: 9.5, value: getPersonLabel(os.assignedTo) },
     ],
-    title: 'Responsável',
+    title: 'Técnico responsável',
     width: contentWidth - metricWidth * 3 - 12,
     x: marginX + (metricWidth + 4) * 3,
     y,
@@ -407,29 +537,77 @@ export const downloadServiceOrderPdf = async (os) => {
   doc.text(descriptionLines, marginX + 5, y + 10);
   y += descriptionHeight + 11;
 
-  drawSectionTitle(doc, 'Dados completos', marginX, y);
+  addPageIfNeeded(52);
+  drawSectionTitle(doc, 'Conclusão do Técnico', marginX, y);
+  y += 7;
+  const completionLines = doc.splitTextToSize(
+    normalizeValue(os.completionDescription),
+    contentWidth - 10,
+  );
+  const completionHeight = Math.max(32, 13 + completionLines.length * 5);
+  drawRoundedCard(doc, marginX, y, contentWidth, completionHeight);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  setTextColor(doc, COLORS.slate);
+  doc.text(completionLines, marginX + 5, y + 10);
+  y += completionHeight + 8;
+
+  addPageIfNeeded(58);
+  drawSectionTitle(doc, 'Formulários', marginX, y);
+  y += 10;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  setTextColor(doc, COLORS.blueDark);
+  doc.text('Status Final', marginX, y);
   y += 7;
 
-  const rows = buildDetailRows(os);
-  const rowHeight = 10;
-  const labelWidth = 42;
-  rows.forEach(([label, value]) => {
-    const valueLines = doc.splitTextToSize(normalizeValue(value), contentWidth - labelWidth - 10);
-    const height = Math.max(rowHeight, 6 + valueLines.length * 4.8);
-    addPageIfNeeded(height + 2);
+  drawCheckboxGroup('Status da OS:', [
+    { checked: os.status === 'DONE', label: 'Finalizado' },
+    { checked: os.status === 'WITH_PENDING', label: 'Com pendência' },
+  ]);
 
-    drawRoundedCard(doc, marginX, y, contentWidth, height);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.8);
-    setTextColor(doc, COLORS.muted);
-    doc.text(label.toUpperCase(), marginX + 5, y + 6.5);
+  drawCheckboxGroup('Solução do defeito:', [
+    {
+      checked: defectSolution === 'replacement',
+      label: 'Substituição de Peça(s) / Componente(s)',
+    },
+    { checked: defectSolution === 'adjustment', label: 'Ajuste' },
+    { checked: defectSolution === 'repair', label: 'Programar Reparo' },
+  ]);
 
+  drawCheckboxGroup('Elevador funcionando?', [
+    { checked: isElevatorRunning, label: 'Elevador funcionando' },
+    { checked: isElevatorStopped, label: 'Elevador parado' },
+  ]);
+
+  drawTotalsStrip();
+  drawAttachments();
+
+  addPageIfNeeded(54);
+  drawSectionTitle(doc, 'Assinatura', marginX, y);
+  y += 7;
+  drawRoundedCard(doc, marginX, y, contentWidth, 38);
+  if (os.customerSignature) {
+    doc.addImage(os.customerSignature, 'PNG', marginX + 5, y + 4, 92, 28);
+  } else {
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    setTextColor(doc, COLORS.slate);
-    doc.text(valueLines, marginX + labelWidth, y + 6.5);
-    y += height + 2;
-  });
+    doc.setFontSize(8.5);
+    setTextColor(doc, COLORS.muted);
+    doc.text('Assinatura não informada.', marginX + 5, y + 20);
+  }
+  y += 45;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.4);
+  setTextColor(doc, COLORS.slate);
+  doc.text(`Assinatura de ${normalizeValue(os.customer)}`, marginX, y);
+  y += 4;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.8);
+  setTextColor(doc, COLORS.blue);
+  doc.text(`Assinado em: ${formatDateTime(os.updatedAt)}`, marginX, y);
+  y += 8;
 
   addPageIfNeeded(18);
   setDrawColor(doc, COLORS.border);

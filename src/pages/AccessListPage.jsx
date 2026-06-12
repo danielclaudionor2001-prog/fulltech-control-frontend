@@ -19,6 +19,10 @@ const ROLE_OPTIONS = [
     value: 'TECH',
   },
   {
+    label: 'Supervisor',
+    value: 'SUPERVISOR',
+  },
+  {
     label: 'Administrador',
     value: 'ADMIN',
   },
