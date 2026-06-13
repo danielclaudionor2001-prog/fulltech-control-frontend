@@ -18,7 +18,7 @@ export default function RequireRole({ allowedRoles, children }) {
   if (!isLoaded || status === 'loading') {
     return (
       <FullPageState>
-        <BrandLoader label="Carregando acesso..." />
+        <BrandLoader />
       </FullPageState>
     );
   }

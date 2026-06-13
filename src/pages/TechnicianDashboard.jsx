@@ -1,9 +1,20 @@
 import { useAuth } from '@clerk/clerk-react';
-import { CircleAlert, MapPin, RefreshCw } from 'lucide-react';
+import {
+  CircleAlert,
+  ListFilter,
+  MapPin,
+  RefreshCw,
+  Search,
+} from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppAuth } from '../auth/useAppAuth';
 import ButtonSpinner from '../components/ButtonSpinner';
+import LocationPermissionModal from '../components/LocationPermissionModal';
+import LocationRequestPendingModal from '../components/LocationRequestPendingModal';
 import OSCard from '../components/OSCard';
+import ProximityWarningModal from '../components/ProximityWarningModal';
+import SelectField from '../components/SelectField';
+import ServiceOrderSlider from '../components/ServiceOrderSlider';
 import SkeletonBlock from '../components/SkeletonBlock';
 import { useToast } from '../components/ToastProvider';
 import {
@@ -12,21 +23,23 @@ import {
   updateLocation,
   updateServiceOrder,
 } from '../services/api';
+import {
+  buildLocationGuidance,
+  isDistanceValidationMessage,
+  isLocationPermissionMessage,
+  isTechnicalLocationSyncMessage,
+  requestBrowserLocation,
+} from '../utils/locationSupport';
+import {
+  filterServiceOrders,
+  ORDER_STATUS_FILTER_OPTIONS,
+  sortServiceOrdersByLatest,
+} from '../utils/serviceOrdersFilter';
 
-function getCurrentPosition() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocalização não suportada neste navegador.'));
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 10000,
-    });
-  });
-}
+const initialFilters = {
+  search: '',
+  status: '',
+};
 
 export default function TechnicianDashboard() {
   const { getToken } = useAuth();
@@ -40,7 +53,13 @@ export default function TechnicianDashboard() {
   const [busyOrderId, setBusyOrderId] = useState('');
   const [busyOrderAction, setBusyOrderAction] = useState('');
   const [pageError, setPageError] = useState('');
+  const [orderFilters, setOrderFilters] = useState(initialFilters);
+  const [isLocationHelpOpen, setIsLocationHelpOpen] = useState(false);
+  const [isLocationPendingOpen, setIsLocationPendingOpen] = useState(false);
+  const [proximityAlertMessage, setProximityAlertMessage] = useState('');
+  const [pendingStartOrderId, setPendingStartOrderId] = useState('');
 
+  const guidance = useMemo(() => buildLocationGuidance(), []);
   const isInitialLoading = loading && orders.length === 0;
   const pageTitle =
     appUser?.role === 'SUPERVISOR' ? 'Painel do supervisor' : 'Painel do técnico';
@@ -51,7 +70,7 @@ export default function TechnicianDashboard() {
 
     try {
       const data = await getServiceOrders(getToken);
-      setOrders(data);
+      setOrders(sortServiceOrdersByLatest(data));
     } catch (error) {
       console.error('Failed to fetch orders', error);
       setPageError('Não foi possível carregar as ordens agora.');
@@ -132,21 +151,34 @@ export default function TechnicianDashboard() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [appUser, getToken, locationState]);
 
-  const availableOrders = useMemo(
-    () => orders.filter((os) => !os.assignedToId && os.status === 'OPEN'),
-    [orders],
-  );
-  const myOrders = useMemo(
+  const availableOrders = useMemo(() => {
+    const filtered = orders.filter((os) => !os.assignedToId && os.status === 'OPEN');
+    return filterServiceOrders(sortServiceOrdersByLatest(filtered), orderFilters);
+  }, [orderFilters, orders]);
+
+  const myOrders = useMemo(() => {
+    const filtered = orders.filter((os) => os.assignedToId === appUser?.id);
+    return filterServiceOrders(sortServiceOrdersByLatest(filtered), orderFilters);
+  }, [appUser?.id, orderFilters, orders]);
+
+  const rawMyOrders = useMemo(
     () => orders.filter((os) => os.assignedToId === appUser?.id),
     [appUser?.id, orders],
   );
-  const inProgressOrders = useMemo(
-    () => myOrders.filter((os) => os.status === 'IN_PROGRESS'),
-    [myOrders],
+
+  const rawAvailableOrders = useMemo(
+    () => orders.filter((os) => !os.assignedToId && os.status === 'OPEN'),
+    [orders],
   );
+
+  const inProgressOrders = useMemo(
+    () => rawMyOrders.filter((os) => os.status === 'IN_PROGRESS'),
+    [rawMyOrders],
+  );
+
   const completedOrders = useMemo(
-    () => myOrders.filter((os) => os.status === 'DONE'),
-    [myOrders],
+    () => rawMyOrders.filter((os) => os.status === 'DONE'),
+    [rawMyOrders],
   );
 
   const handleRefresh = async () => {
@@ -162,12 +194,47 @@ export default function TechnicianDashboard() {
     }
   };
 
-  const handleClaim = async (id) => {
+  const handleRetryLocationAccess = async () => {
+    setIsLocationHelpOpen(false);
+    setIsLocationPendingOpen(true);
+
     try {
-      setBusyOrderId(id);
-      setBusyOrderAction('claim');
+      const position = await requestBrowserLocation();
+      await updateLocation(
+        position.coords.latitude,
+        position.coords.longitude,
+        getToken,
+      );
+      setLocationState('granted');
       setLocationError('');
-      const position = await getCurrentPosition();
+      showSuccess('Localização atualizada com sucesso.');
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível obter sua localização agora.';
+      setLocationError(message);
+
+      if (isLocationPermissionMessage(message)) {
+        setIsLocationHelpOpen(true);
+      } else if (!isTechnicalLocationSyncMessage(message)) {
+        showWarning(message);
+      }
+    } finally {
+      setIsLocationPendingOpen(false);
+    }
+  };
+
+  const startOrderWithValidation = async (id) => {
+    setBusyOrderId(id);
+    setBusyOrderAction('claim');
+    setLocationError('');
+    setProximityAlertMessage('');
+    setPendingStartOrderId(id);
+    setIsLocationPendingOpen(true);
+
+    try {
+      const position = await requestBrowserLocation();
       setLocationState('granted');
 
       await startServiceOrder(
@@ -179,14 +246,25 @@ export default function TechnicianDashboard() {
 
       await fetchOrders();
       showSuccess('Atendimento iniciado com sucesso.');
+      setPendingStartOrderId('');
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : 'Você precisa permitir a localização para iniciar o atendimento.';
-      setLocationError(message);
-      showWarning(message);
+          : 'Você precisa liberar a localização para iniciar o atendimento.';
+
+      if (isDistanceValidationMessage(message)) {
+        setLocationError('');
+        setProximityAlertMessage(message);
+      } else if (isLocationPermissionMessage(message)) {
+        setLocationError(message);
+        setIsLocationHelpOpen(true);
+      } else {
+        setLocationError(message);
+        showWarning(message);
+      }
     } finally {
+      setIsLocationPendingOpen(false);
       setBusyOrderId('');
       setBusyOrderAction('');
     }
@@ -231,8 +309,8 @@ export default function TechnicianDashboard() {
             <span className="page-eyebrow">Atendimento em campo</span>
             <h1 className="page-title">{pageTitle}</h1>
             <p className="page-subtitle">
-              Para iniciar um atendimento, o navegador precisa liberar sua
-              localização e mantê-la ativa durante a execução.
+              O navegador precisa informar sua localização no login e novamente
+              ao assumir uma OS para validar a proximidade do atendimento.
             </p>
           </div>
 
@@ -261,7 +339,7 @@ export default function TechnicianDashboard() {
             {isInitialLoading ? (
               <SkeletonBlock className="skeleton-number" />
             ) : (
-              <strong>{myOrders.length}</strong>
+              <strong>{rawMyOrders.length}</strong>
             )}
             <small>Ordens já vinculadas ao seu usuário</small>
           </div>
@@ -279,7 +357,7 @@ export default function TechnicianDashboard() {
             {isInitialLoading ? (
               <SkeletonBlock className="skeleton-number" />
             ) : (
-              <strong>{availableOrders.length}</strong>
+              <strong>{rawAvailableOrders.length}</strong>
             )}
             <small>Chamados abertos aguardando aceite</small>
           </div>
@@ -297,6 +375,68 @@ export default function TechnicianDashboard() {
 
       {pageError ? <div className="inline-error">{pageError}</div> : null}
       {locationError ? <div className="inline-error">{locationError}</div> : null}
+
+      <section className="section-card">
+        <div className="section-title">
+          <ListFilter size={18} />
+          <div>
+            <h3>Filtro de ordens</h3>
+            <p className="section-subtitle">
+              Pesquise por cliente, identificador, endereço, descrição ou
+              responsável.
+            </p>
+          </div>
+        </div>
+
+        <div className="os-row cols-3b">
+          <label className="simple-form-field">
+            <span>Pesquisar</span>
+            <div className="input-with-icon">
+              <Search size={18} />
+              <input
+                className="form-control has-leading-icon"
+                onChange={(event) =>
+                  setOrderFilters((previous) => ({
+                    ...previous,
+                    search: event.target.value,
+                  }))
+                }
+                placeholder="Cliente, OS, endereço ou responsável"
+                type="text"
+                value={orderFilters.search}
+              />
+            </div>
+          </label>
+
+          <label className="simple-form-field">
+            <span>Status</span>
+            <SelectField
+              onChange={(value) =>
+                setOrderFilters((previous) => ({
+                  ...previous,
+                  status: value,
+                }))
+              }
+              options={ORDER_STATUS_FILTER_OPTIONS}
+              placeholder="Todos os status"
+              value={orderFilters.status}
+            />
+          </label>
+
+          <div className="simple-form-field">
+            <span>Ações</span>
+            <div className="table-actions">
+              <button
+                className="btn btn-secondary btn-compact"
+                onClick={() => setOrderFilters(initialFilters)}
+                type="button"
+              >
+                Limpar filtros
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="content-grid content-grid-dashboard mobile-orders-first">
         <section className="section-card section-card-orders">
@@ -329,21 +469,26 @@ export default function TechnicianDashboard() {
           ) : myOrders.length === 0 ? (
             <div className="empty-state">
               <CircleAlert size={18} />
-              <span>Você ainda não assumiu nenhuma OS.</span>
+              <span>
+                {rawMyOrders.length === 0
+                  ? 'Você ainda não assumiu nenhuma OS.'
+                  : 'Nenhuma OS da sua carteira atende aos filtros atuais.'}
+              </span>
             </div>
           ) : (
-            <div className="grid">
-              {myOrders.map((os) => (
+            <ServiceOrderSlider
+              items={myOrders}
+              renderItem={(os) => (
                 <OSCard
                   busyAction={busyOrderId === os.id ? busyOrderAction : ''}
                   key={os.id}
                   isTechnician
-                  onClaim={handleClaim}
+                  onClaim={startOrderWithValidation}
                   onStatusUpdate={handleStatusUpdate}
                   os={os}
                 />
-              ))}
-            </div>
+              )}
+            />
           )}
         </section>
 
@@ -380,24 +525,67 @@ export default function TechnicianDashboard() {
           ) : availableOrders.length === 0 ? (
             <div className="empty-state">
               <CircleAlert size={18} />
-              <span>Nenhuma OS disponível no momento.</span>
+              <span>
+                {rawAvailableOrders.length === 0
+                  ? 'Nenhuma OS disponível no momento.'
+                  : 'Nenhuma OS disponível atende aos filtros atuais.'}
+              </span>
             </div>
           ) : (
-            <div className="grid">
-              {availableOrders.map((os) => (
+            <ServiceOrderSlider
+              items={availableOrders}
+              renderItem={(os) => (
                 <OSCard
                   busyAction={busyOrderId === os.id ? busyOrderAction : ''}
                   key={os.id}
                   isTechnician
-                  onClaim={handleClaim}
+                  onClaim={startOrderWithValidation}
                   onStatusUpdate={handleStatusUpdate}
                   os={os}
                 />
-              ))}
-            </div>
+              )}
+            />
           )}
         </section>
       </div>
+
+      <LocationRequestPendingModal
+        description="Aceite a solicitação de localização do navegador para validarmos sua presença perto do cliente."
+        onClose={() => setIsLocationPendingOpen(false)}
+        open={isLocationPendingOpen}
+        title="Validando sua localização"
+      />
+
+      <LocationPermissionModal
+        description="Para iniciar o atendimento, o navegador precisa informar sua localização atual."
+        guidance={guidance}
+        onClose={() => setIsLocationHelpOpen(false)}
+        onRetry={() => {
+          setIsLocationHelpOpen(false);
+
+          if (pendingStartOrderId) {
+            void startOrderWithValidation(pendingStartOrderId);
+            return;
+          }
+
+          void handleRetryLocationAccess();
+        }}
+        open={isLocationHelpOpen}
+        title={guidance.title}
+      />
+
+      <ProximityWarningModal
+        message={proximityAlertMessage}
+        onClose={() => setProximityAlertMessage('')}
+        onRetry={
+          pendingStartOrderId
+            ? () => {
+                void startOrderWithValidation(pendingStartOrderId);
+              }
+            : undefined
+        }
+        open={Boolean(proximityAlertMessage)}
+      />
     </div>
   );
 }

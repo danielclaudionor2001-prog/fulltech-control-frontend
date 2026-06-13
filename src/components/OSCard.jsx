@@ -52,12 +52,14 @@ export default function OSCard({
   const isActionBusy = Boolean(busyAction);
 
   const handleAdminProgress = () => {
-    if (onStatusUpdate) {
-      void onStatusUpdate(os.id, 'IN_PROGRESS');
+    if (onAssign) {
+      void onAssign(os.id);
       return;
     }
 
-    void onAssign?.(os.id);
+    if (onStatusUpdate) {
+      void onStatusUpdate(os.id, 'IN_PROGRESS');
+    }
   };
 
   const handlePdfDownload = async () => {
@@ -118,7 +120,7 @@ export default function OSCard({
           {technicianLabel ? (
             <div className="os-card-meta-item">
               <User size={16} />
-              <span>Técnico responsável: {technicianLabel}</span>
+              <span>Responsável: {technicianLabel}</span>
             </div>
           ) : null}
         </div>
@@ -155,7 +157,7 @@ export default function OSCard({
             >
               {busyAction === 'claim' ? <ButtonSpinner /> : null}
               {busyAction === 'claim'
-                ? 'Iniciando...'
+                ? 'Validando local...'
                 : os.assignedToId
                   ? 'Iniciar OS'
                   : 'Assumir OS'}
@@ -185,10 +187,13 @@ export default function OSCard({
               type="button"
             >
               {busyAction === 'progress' ? <ButtonSpinner /> : null}
-              {busyAction === 'progress' ? 'Atualizando...' : 'Dar andamento'}
+              {busyAction === 'progress'
+                ? onAssign
+                  ? 'Validando local...'
+                  : 'Atualizando...'
+                : 'Dar andamento'}
             </button>
           ) : null}
-
         </div>
       </article>
 

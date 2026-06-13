@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function BrandLoader({ label = 'Carregando...' }) {
+export default function BrandLoader({ label = '' }) {
   return (
     <div className="brand-loader">
       <div className="brand-loader-row">
@@ -11,7 +11,7 @@ export default function BrandLoader({ label = 'Carregando...' }) {
           src="/brand/fulltech-wordmark.png"
         />
       </div>
-      <p>{label}</p>
+      {label ? <p>{label}</p> : null}
     </div>
   );
 }

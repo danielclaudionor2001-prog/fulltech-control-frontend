@@ -3,23 +3,43 @@ import {
   CheckCircle2,
   CircleAlert,
   Clock3,
+  ListFilter,
   RefreshCw,
+  Search,
   Users,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ButtonSpinner from '../components/ButtonSpinner';
+import LocationPermissionModal from '../components/LocationPermissionModal';
+import LocationRequestPendingModal from '../components/LocationRequestPendingModal';
 import OSCard from '../components/OSCard';
+import ProximityWarningModal from '../components/ProximityWarningModal';
 import SelectField from '../components/SelectField';
+import ServiceOrderSlider from '../components/ServiceOrderSlider';
 import SkeletonBlock from '../components/SkeletonBlock';
 import { useToast } from '../components/ToastProvider';
 import {
   getCustomers,
   getServiceOrders,
   getUsers,
+  startServiceOrder,
+  updateLocation,
   updateServiceOrder,
   updateUserRole,
 } from '../services/api';
+import {
+  buildLocationGuidance,
+  isDistanceValidationMessage,
+  isLocationPermissionMessage,
+  isTechnicalLocationSyncMessage,
+  requestBrowserLocation,
+} from '../utils/locationSupport';
+import {
+  filterServiceOrders,
+  ORDER_STATUS_FILTER_OPTIONS,
+  sortServiceOrdersByLatest,
+} from '../utils/serviceOrdersFilter';
 
 const ROLE_OPTIONS = [
   {
@@ -55,6 +75,11 @@ const initialOrderFilters = {
   startDate: '',
 };
 
+const initialDisplayFilters = {
+  search: '',
+  status: '',
+};
+
 export default function AdminDashboard() {
   const { getToken } = useAuth();
   const { showError, showSuccess, showWarning } = useToast();
@@ -68,9 +93,15 @@ export default function AdminDashboard() {
   const [busyOrderId, setBusyOrderId] = useState('');
   const [busyOrderAction, setBusyOrderAction] = useState('');
   const [filterDrafts, setFilterDrafts] = useState(initialOrderFilters);
-  const [hasAppliedOrderFilter, setHasAppliedOrderFilter] = useState(false);
   const [orderFilters, setOrderFilters] = useState(initialOrderFilters);
+  const [displayFilters, setDisplayFilters] = useState(initialDisplayFilters);
   const [pageError, setPageError] = useState('');
+  const [isLocationHelpOpen, setIsLocationHelpOpen] = useState(false);
+  const [isLocationPendingOpen, setIsLocationPendingOpen] = useState(false);
+  const [proximityAlertMessage, setProximityAlertMessage] = useState('');
+  const [pendingStartOrderId, setPendingStartOrderId] = useState('');
+
+  const guidance = useMemo(() => buildLocationGuidance(), []);
 
   const isInitialLoading =
     loading && orders.length === 0 && users.length === 0 && customers.length === 0;
@@ -81,14 +112,12 @@ export default function AdminDashboard() {
 
     try {
       const [ordersData, usersData, customersData] = await Promise.all([
-        hasAppliedOrderFilter
-          ? getServiceOrders(getToken, orderFilters)
-          : Promise.resolve([]),
+        getServiceOrders(getToken, orderFilters),
         getUsers(getToken),
         getCustomers(getToken),
       ]);
 
-      setOrders(ordersData);
+      setOrders(sortServiceOrdersByLatest(ordersData));
       setUsers(usersData);
       setCustomers(customersData);
       setRoleDrafts(
@@ -101,7 +130,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [getToken, hasAppliedOrderFilter, orderFilters]);
+  }, [getToken, orderFilters]);
 
   useEffect(() => {
     void fetchDashboard().catch(() => {});
@@ -173,6 +202,12 @@ export default function AdminDashboard() {
     [customers],
   );
 
+  const visibleOrders = useMemo(
+    () =>
+      filterServiceOrders(sortServiceOrdersByLatest(orders), displayFilters),
+    [displayFilters, orders],
+  );
+
   const handleFilterChange = (name, value) => {
     setFilterDrafts((previous) => ({
       ...previous,
@@ -181,22 +216,13 @@ export default function AdminDashboard() {
   };
 
   const handleApplyFilters = () => {
-    const hasAnyFilter = Object.values(filterDrafts).some(Boolean);
-
-    if (!hasAnyFilter) {
-      showWarning('Escolha pelo menos um filtro para visualizar as ordens.');
-      return;
-    }
-
-    setHasAppliedOrderFilter(true);
     setOrderFilters(filterDrafts);
   };
 
   const handleClearFilters = () => {
     setFilterDrafts(initialOrderFilters);
-    setHasAppliedOrderFilter(false);
     setOrderFilters(initialOrderFilters);
-    setOrders([]);
+    setDisplayFilters(initialDisplayFilters);
   };
 
   const handleUpdateRole = async (id) => {
@@ -236,6 +262,79 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleRetryLocationAccess = async () => {
+    setIsLocationHelpOpen(false);
+
+    if (pendingStartOrderId) {
+      await handleStartOrderWithValidation(pendingStartOrderId);
+      return;
+    }
+    setIsLocationPendingOpen(true);
+
+    try {
+      const position = await requestBrowserLocation();
+      await updateLocation(
+        position.coords.latitude,
+        position.coords.longitude,
+        getToken,
+      );
+      showSuccess('Localizacao atualizada com sucesso.');
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Nao foi possivel obter sua localizacao agora.';
+
+      if (isLocationPermissionMessage(message)) {
+        setIsLocationHelpOpen(true);
+      } else if (!isTechnicalLocationSyncMessage(message)) {
+        showWarning(message);
+      }
+    } finally {
+      setIsLocationPendingOpen(false);
+    }
+  };
+
+  const handleStartOrderWithValidation = async (id) => {
+    setBusyOrderId(id);
+    setBusyOrderAction('progress');
+    setPendingStartOrderId(id);
+    setProximityAlertMessage('');
+    setIsLocationPendingOpen(true);
+
+    try {
+      const position = await requestBrowserLocation();
+
+      await startServiceOrder(
+        id,
+        position.coords.latitude,
+        position.coords.longitude,
+        getToken,
+      );
+
+      await fetchDashboard();
+      showSuccess('Atendimento iniciado com sucesso.');
+      setPendingStartOrderId('');
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Nao foi possivel validar sua localizacao para iniciar a OS.';
+
+      if (isDistanceValidationMessage(message)) {
+        setProximityAlertMessage(message);
+      } else if (isLocationPermissionMessage(message)) {
+        setIsLocationHelpOpen(true);
+      } else if (!isTechnicalLocationSyncMessage(message)) {
+        showWarning(message);
+      }
+    } finally {
+      setIsLocationPendingOpen(false);
+      setBusyOrderId('');
+      setBusyOrderAction('');
+    }
+  };
+
   return (
     <div className="dashboard-stack">
       <section className="hero-panel">
@@ -263,7 +362,7 @@ export default function AdminDashboard() {
 
         <div className="summary-grid">
           <div className="summary-card summary-card-blue">
-            <span className="summary-label">Ordens hoje</span>
+            <span className="summary-label">Ordens</span>
             {isInitialLoading ? (
               <SkeletonBlock className="skeleton-number" />
             ) : (
@@ -443,8 +542,7 @@ export default function AdminDashboard() {
                   <div>
                     <strong>{user.name || user.email || user.clerkUserId}</strong>
                     <p>
-                      {(user.email || 'Sem e-mail')} •{' '}
-                      {getRoleLabel(user.role)}
+                      {(user.email || 'Sem e-mail')} • {getRoleLabel(user.role)}
                     </p>
                   </div>
 
@@ -484,12 +582,12 @@ export default function AdminDashboard() {
 
       <section className="section-card">
         <div className="section-title">
-          <Clock3 size={18} />
+          <ListFilter size={18} />
           <div>
-            <h3>Filtro de ordem de serviço</h3>
+            <h3>Filtros de ordem de serviço</h3>
             <p className="section-subtitle">
-              Refine a visão por técnico responsável, cliente e período de
-              agendamento.
+              Combine filtros de carteira e busca rápida para localizar ordens com
+              mais precisão.
             </p>
           </div>
         </div>
@@ -537,25 +635,56 @@ export default function AdminDashboard() {
             />
           </label>
 
-          <div className="simple-form-field">
-            <span>Ações</span>
-            <div className="table-actions">
-              <button
-                className="btn btn-primary btn-compact"
-                onClick={handleApplyFilters}
-                type="button"
-              >
-                Aplicar filtros
-              </button>
-              <button
-                className="btn btn-secondary btn-compact"
-                onClick={handleClearFilters}
-                type="button"
-              >
-                Limpar
-              </button>
+          <label className="simple-form-field">
+            <span>Busca rápida</span>
+            <div className="input-with-icon">
+              <Search size={18} />
+              <input
+                className="form-control has-leading-icon"
+                onChange={(event) =>
+                  setDisplayFilters((previous) => ({
+                    ...previous,
+                    search: event.target.value,
+                  }))
+                }
+                placeholder="Cliente, OS, endereço ou responsável"
+                type="text"
+                value={displayFilters.search}
+              />
             </div>
-          </div>
+          </label>
+
+          <label className="simple-form-field">
+            <span>Status</span>
+            <SelectField
+              onChange={(value) =>
+                setDisplayFilters((previous) => ({
+                  ...previous,
+                  status: value,
+                }))
+              }
+              options={ORDER_STATUS_FILTER_OPTIONS}
+              placeholder="Todos os status"
+              value={displayFilters.status}
+            />
+          </label>
+        </div>
+
+        <div className="table-actions">
+          <button
+            className="btn btn-primary btn-compact"
+            onClick={handleApplyFilters}
+            type="button"
+          >
+            Aplicar filtros
+          </button>
+          <button
+            className="btn btn-secondary btn-compact"
+            onClick={handleClearFilters}
+            type="button"
+          >
+            Limpar
+          </button>
         </div>
       </section>
 
@@ -570,12 +699,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {!hasAppliedOrderFilter ? (
-          <div className="empty-state">
-            <CircleAlert size={18} />
-            <span>Use o filtro acima para visualizar as ordens de serviço.</span>
-          </div>
-        ) : isInitialLoading ? (
+        {isInitialLoading ? (
           <div className="grid">
             {Array.from({ length: 3 }).map((_, index) => (
               <div className="skeleton-card" key={`order-skeleton-${index}`}>
@@ -590,25 +714,63 @@ export default function AdminDashboard() {
               </div>
             ))}
           </div>
-        ) : orders.length === 0 ? (
+        ) : visibleOrders.length === 0 ? (
           <div className="empty-state">
             <CircleAlert size={18} />
-            <span>Nenhuma ordem cadastrada até o momento.</span>
+            <span>
+              {orders.length === 0
+                ? 'Nenhuma ordem cadastrada até o momento.'
+                : 'Nenhuma ordem encontrada com os filtros atuais.'}
+            </span>
           </div>
         ) : (
-          <div className="grid">
-            {orders.map((os) => (
+          <ServiceOrderSlider
+            items={visibleOrders}
+            renderItem={(os) => (
               <OSCard
                 busyAction={busyOrderId === os.id ? busyOrderAction : ''}
                 key={os.id}
                 isTechnician={false}
+                onAssign={handleStartOrderWithValidation}
                 onStatusUpdate={handleStatusUpdate}
                 os={os}
               />
-            ))}
-          </div>
+            )}
+          />
         )}
       </section>
+
+      <LocationRequestPendingModal
+        description="Aceite a solicitacao de localizacao do navegador para validarmos sua presenca perto do cliente."
+        onClose={() => setIsLocationPendingOpen(false)}
+        open={isLocationPendingOpen}
+        title="Validando sua localizacao"
+      />
+
+      <LocationPermissionModal
+        description="Para iniciar o atendimento, o navegador precisa informar sua localizacao atual."
+        guidance={guidance}
+        onClose={() => setIsLocationHelpOpen(false)}
+        onRetry={() => {
+          setIsLocationHelpOpen(false);
+          void handleRetryLocationAccess();
+        }}
+        open={isLocationHelpOpen}
+        title={guidance.title}
+      />
+
+      <ProximityWarningModal
+        message={proximityAlertMessage}
+        onClose={() => setProximityAlertMessage('')}
+        onRetry={
+          pendingStartOrderId
+            ? () => {
+                void handleStartOrderWithValidation(pendingStartOrderId);
+              }
+            : undefined
+        }
+        open={Boolean(proximityAlertMessage)}
+      />
     </div>
   );
 }
