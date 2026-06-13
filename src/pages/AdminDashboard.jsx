@@ -14,6 +14,7 @@ import SelectField from '../components/SelectField';
 import SkeletonBlock from '../components/SkeletonBlock';
 import { useToast } from '../components/ToastProvider';
 import {
+  getCustomers,
   getServiceOrders,
   getUsers,
   updateServiceOrder,
@@ -56,7 +57,8 @@ const initialOrderFilters = {
 
 export default function AdminDashboard() {
   const { getToken } = useAuth();
-  const { showError, showSuccess } = useToast();
+  const { showError, showSuccess, showWarning } = useToast();
+  const [customers, setCustomers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
   const [roleDrafts, setRoleDrafts] = useState({});
@@ -66,23 +68,29 @@ export default function AdminDashboard() {
   const [busyOrderId, setBusyOrderId] = useState('');
   const [busyOrderAction, setBusyOrderAction] = useState('');
   const [filterDrafts, setFilterDrafts] = useState(initialOrderFilters);
+  const [hasAppliedOrderFilter, setHasAppliedOrderFilter] = useState(false);
   const [orderFilters, setOrderFilters] = useState(initialOrderFilters);
   const [pageError, setPageError] = useState('');
 
-  const isInitialLoading = loading && orders.length === 0 && users.length === 0;
+  const isInitialLoading =
+    loading && orders.length === 0 && users.length === 0 && customers.length === 0;
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
     setPageError('');
 
     try {
-      const [ordersData, usersData] = await Promise.all([
-        getServiceOrders(getToken, orderFilters),
+      const [ordersData, usersData, customersData] = await Promise.all([
+        hasAppliedOrderFilter
+          ? getServiceOrders(getToken, orderFilters)
+          : Promise.resolve([]),
         getUsers(getToken),
+        getCustomers(getToken),
       ]);
 
       setOrders(ordersData);
       setUsers(usersData);
+      setCustomers(customersData);
       setRoleDrafts(
         Object.fromEntries(usersData.map((user) => [user.id, user.role])),
       );
@@ -93,7 +101,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [getToken, orderFilters]);
+  }, [getToken, hasAppliedOrderFilter, orderFilters]);
 
   useEffect(() => {
     void fetchDashboard().catch(() => {});
@@ -152,6 +160,18 @@ export default function AdminDashboard() {
     ],
     [users],
   );
+  const customerFilterOptions = useMemo(
+    () => [
+      { label: 'Todos', value: '' },
+      ...customers.map((customer) => ({
+        label: customer.email
+          ? `${customer.name} (${customer.email})`
+          : customer.name,
+        value: customer.name,
+      })),
+    ],
+    [customers],
+  );
 
   const handleFilterChange = (name, value) => {
     setFilterDrafts((previous) => ({
@@ -161,12 +181,22 @@ export default function AdminDashboard() {
   };
 
   const handleApplyFilters = () => {
+    const hasAnyFilter = Object.values(filterDrafts).some(Boolean);
+
+    if (!hasAnyFilter) {
+      showWarning('Escolha pelo menos um filtro para visualizar as ordens.');
+      return;
+    }
+
+    setHasAppliedOrderFilter(true);
     setOrderFilters(filterDrafts);
   };
 
   const handleClearFilters = () => {
     setFilterDrafts(initialOrderFilters);
+    setHasAppliedOrderFilter(false);
     setOrderFilters(initialOrderFilters);
+    setOrders([]);
   };
 
   const handleUpdateRole = async (id) => {
@@ -456,7 +486,7 @@ export default function AdminDashboard() {
         <div className="section-title">
           <Clock3 size={18} />
           <div>
-            <h3>Filtros de ordens de serviço</h3>
+            <h3>Filtro de ordem de serviço</h3>
             <p className="section-subtitle">
               Refine a visão por técnico responsável, cliente e período de
               agendamento.
@@ -477,11 +507,10 @@ export default function AdminDashboard() {
 
           <label className="simple-form-field">
             <span>Nome do cliente</span>
-            <input
-              className="form-control"
-              onChange={(event) => handleFilterChange('customer', event.target.value)}
-              placeholder="Buscar cliente"
-              type="search"
+            <SelectField
+              onChange={(value) => handleFilterChange('customer', value)}
+              options={customerFilterOptions}
+              placeholder="Todos"
               value={filterDrafts.customer}
             />
           </label>
@@ -541,7 +570,12 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {isInitialLoading ? (
+        {!hasAppliedOrderFilter ? (
+          <div className="empty-state">
+            <CircleAlert size={18} />
+            <span>Use o filtro acima para visualizar as ordens de serviço.</span>
+          </div>
+        ) : isInitialLoading ? (
           <div className="grid">
             {Array.from({ length: 3 }).map((_, index) => (
               <div className="skeleton-card" key={`order-skeleton-${index}`}>

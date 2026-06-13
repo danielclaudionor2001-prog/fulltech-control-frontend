@@ -5,6 +5,8 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import { AppAuthProvider } from './auth/AppAuthProvider';
+import { ClerkTabSessionBoundary } from './auth/ClerkTabSessionBoundary.jsx';
+import { selectInitialTabSession } from './auth/clerkTabSession';
 import { ToastProvider } from './components/ToastProvider';
 import './index.css';
 
@@ -60,18 +62,21 @@ createRoot(document.getElementById('root')).render(
       afterSignOutUrl="/"
       localization={clerkLocalization}
       publishableKey={clerkPublishableKey}
+      selectInitialSession={selectInitialTabSession}
       signInFallbackRedirectUrl="/"
       signInUrl="/"
       signUpFallbackRedirectUrl="/"
       signUpUrl="/sign-up"
     >
-      <BrowserRouter>
-        <ToastProvider>
-          <AppAuthProvider>
-            <App />
-          </AppAuthProvider>
-        </ToastProvider>
-      </BrowserRouter>
+      <ClerkTabSessionBoundary>
+        <BrowserRouter>
+          <ToastProvider>
+            <AppAuthProvider>
+              <App />
+            </AppAuthProvider>
+          </ToastProvider>
+        </BrowserRouter>
+      </ClerkTabSessionBoundary>
     </ClerkProvider>
   </StrictMode>,
 );

@@ -2,7 +2,6 @@ import { jsPDF } from 'jspdf';
 import { getServiceOrderStatusLabel } from './serviceOrderStatus';
 
 const BRAND_SYMBOL_PATH = '/brand/fulltech-symbol.png';
-const WATERMARK_PATH = '/brand/fulltech-os-watermark.jpeg';
 
 const COLORS = {
   blue: [20, 91, 174],
@@ -146,28 +145,6 @@ const loadImageDataUrl = async (path) => {
   return blobToDataUrl(await response.blob());
 };
 
-const loadImageWithOpacity = async (path, opacity) => {
-  const dataUrl = await loadImageDataUrl(path);
-
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = image.naturalWidth;
-      canvas.height = image.naturalHeight;
-
-      const context = canvas.getContext('2d');
-      context.fillStyle = '#ffffff';
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.globalAlpha = opacity;
-      context.drawImage(image, 0, 0);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    image.onerror = reject;
-    image.src = dataUrl;
-  });
-};
-
 const safeFilePart = (value) =>
   String(value || 'os')
     .normalize('NFD')
@@ -271,10 +248,7 @@ const drawStatusPill = (doc, status, x, y) => {
 };
 
 export const downloadServiceOrderPdf = async (os) => {
-  const [brandSymbol, watermark] = await Promise.all([
-    loadImageDataUrl(BRAND_SYMBOL_PATH),
-    loadImageWithOpacity(WATERMARK_PATH, 0.34),
-  ]);
+  const brandSymbol = await loadImageDataUrl(BRAND_SYMBOL_PATH);
 
   const doc = new jsPDF({ format: 'a4', unit: 'mm' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -296,7 +270,8 @@ export const downloadServiceOrderPdf = async (os) => {
   let y = 18;
 
   const addBackground = () => {
-    doc.addImage(watermark, 'PNG', 0, 0, pageWidth, pageHeight);
+    setFillColor(doc, COLORS.surface);
+    doc.rect(0, 0, pageWidth, pageHeight, 'F');
   };
 
   const drawHeader = () => {
