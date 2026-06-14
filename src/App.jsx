@@ -39,6 +39,14 @@ function App() {
             )}
           />
           <Route
+            path="/supervisor/create"
+            element={(
+              <RequireRole allowedRoles={['SUPERVISOR']}>
+                <OSForm />
+              </RequireRole>
+            )}
+          />
+          <Route
             path="/admin/map"
             element={(
               <RequireRole allowedRoles={['ADMIN']}>

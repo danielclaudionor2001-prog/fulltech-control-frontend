@@ -16,6 +16,7 @@ export default function Layout() {
   const isAdmin = appUser?.role === 'ADMIN';
   const isSupervisor = appUser?.role === 'SUPERVISOR';
   const operationalMapPath = isSupervisor ? '/supervisor/map' : '/tech/map';
+  const operationalCreatePath = isSupervisor ? '/supervisor/create' : '';
   const roleLabel =
     appUser?.role === 'ADMIN'
       ? 'Administrador'
@@ -37,6 +38,9 @@ export default function Layout() {
       ]
     : [
         { icon: Home, label: 'Inicio', to: '/tech' },
+        ...(isSupervisor
+          ? [{ icon: Plus, label: 'Nova OS', to: operationalCreatePath }]
+          : []),
         { icon: MapPin, label: 'Mapa', to: operationalMapPath },
       ];
 

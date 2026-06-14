@@ -84,6 +84,9 @@ export const getCurrentUser = (getToken) => request('/users/me', { getToken });
 
 export const getUsers = (getToken) => request('/users', { getToken });
 
+export const getAssignableUsers = (getToken) =>
+  request('/users/technicians', { getToken });
+
 export const updateUserStatus = (id, isActive, getToken) =>
   request(`/users/${id}/status`, {
     body: JSON.stringify({ isActive }),

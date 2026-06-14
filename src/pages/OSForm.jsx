@@ -13,7 +13,11 @@ import { useAppAuth } from '../auth/useAppAuth';
 import ButtonSpinner from '../components/ButtonSpinner';
 import SelectField from '../components/SelectField';
 import { useToast } from '../components/ToastContext';
-import { createServiceOrder, getCustomers, getUsers } from '../services/api';
+import {
+  createServiceOrder,
+  getAssignableUsers,
+  getCustomers,
+} from '../services/api';
 
 const ORDER_TYPE_OPTIONS = [
   { label: 'Manutenção mensal', value: 'manutencao_mensal' },
@@ -77,6 +81,8 @@ export default function OSForm() {
   const [showTabsLeftHint, setShowTabsLeftHint] = useState(false);
   const [showTabsRightHint, setShowTabsRightHint] = useState(false);
   const isAdmin = appUser?.role === 'ADMIN';
+  const canCreateServiceOrder =
+    appUser?.role === 'ADMIN' || appUser?.role === 'SUPERVISOR';
 
   const [formData, setFormData] = useState({
     address: '',
@@ -93,7 +99,7 @@ export default function OSForm() {
   });
 
   const fetchCustomers = useCallback(async () => {
-    if (!isAdmin) {
+    if (!canCreateServiceOrder) {
       setCustomers([]);
       return;
     }
@@ -104,14 +110,14 @@ export default function OSForm() {
     } catch (error) {
       console.error('Failed to fetch customers', error);
     }
-  }, [getToken, isAdmin]);
+  }, [canCreateServiceOrder, getToken]);
 
   useEffect(() => {
     void fetchCustomers();
   }, [fetchCustomers]);
 
   const fetchAssignableUsers = useCallback(async () => {
-    if (!isAdmin) {
+    if (!canCreateServiceOrder) {
       setAssignableUsers([]);
       return;
     }
@@ -119,14 +125,14 @@ export default function OSForm() {
     setIsUsersLoading(true);
 
     try {
-      const data = await getUsers(getToken);
+      const data = await getAssignableUsers(getToken);
       setAssignableUsers(data);
     } catch (error) {
       console.error('Failed to fetch assignable users', error);
     } finally {
       setIsUsersLoading(false);
     }
-  }, [getToken, isAdmin]);
+  }, [canCreateServiceOrder, getToken]);
 
   useEffect(() => {
     void fetchAssignableUsers();
