@@ -46,18 +46,15 @@ export default function ServiceOrderSlider({ items, renderItem }) {
     return nextPages;
   }, [columnsCount, items]);
 
-  useEffect(() => {
-    const maxPageIndex = Math.max(0, pages.length - 1);
-    setPageIndex((current) => Math.min(current, maxPageIndex));
-  }, [pages.length]);
-
   if (items.length === 0) {
     return null;
   }
 
+  const maxPageIndex = Math.max(0, pages.length - 1);
+  const activePageIndex = Math.min(pageIndex, maxPageIndex);
   const isMobileVertical = columnsCount === 1;
-  const hasPreviousPage = pageIndex > 0;
-  const hasNextPage = pageIndex < pages.length - 1;
+  const hasPreviousPage = activePageIndex > 0;
+  const hasNextPage = activePageIndex < maxPageIndex;
 
   return (
     <div
@@ -67,7 +64,7 @@ export default function ServiceOrderSlider({ items, renderItem }) {
       <div className="order-slider-viewport">
         <div
           className="order-slider-track"
-          style={{ transform: `translateX(-${pageIndex * 100}%)` }}
+          style={{ transform: `translateX(-${activePageIndex * 100}%)` }}
         >
           {pages.map((pageItems, currentPageIndex) => (
             <div
@@ -89,7 +86,9 @@ export default function ServiceOrderSlider({ items, renderItem }) {
           className={`order-slider-arrow ${
             isMobileVertical ? 'is-up' : 'is-left'
           }`.trim()}
-          onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
+          onClick={() =>
+            setPageIndex((current) => Math.max(0, Math.min(current, maxPageIndex) - 1))
+          }
           type="button"
         >
           {isMobileVertical ? <ChevronUp size={28} /> : <ChevronLeft size={30} />}
@@ -103,7 +102,9 @@ export default function ServiceOrderSlider({ items, renderItem }) {
             isMobileVertical ? 'is-down' : 'is-right'
           }`.trim()}
           onClick={() =>
-            setPageIndex((current) => Math.min(pages.length - 1, current + 1))
+            setPageIndex((current) =>
+              Math.min(maxPageIndex, Math.min(current, maxPageIndex) + 1),
+            )
           }
           type="button"
         >

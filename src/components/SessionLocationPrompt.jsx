@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/clerk-react';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppAuth } from '../auth/useAppAuth';
 import { updateLocation } from '../services/api';
 import {
@@ -10,7 +10,7 @@ import {
 } from '../utils/locationSupport';
 import LocationPermissionModal from './LocationPermissionModal';
 import LocationRequestPendingModal from './LocationRequestPendingModal';
-import { useToast } from './ToastProvider';
+import { useToast } from './ToastContext';
 
 export default function SessionLocationPrompt() {
   const { getToken, isSignedIn, sessionId, userId } = useAuth();
@@ -22,53 +22,56 @@ export default function SessionLocationPrompt() {
 
   const guidance = useMemo(() => buildLocationGuidance(), []);
 
-  const requestAndStoreLocation = async ({ showSuccessToast = false } = {}) => {
-    setIsPendingOpen(true);
-
-    try {
-      const position = await requestBrowserLocation();
+  const requestAndStoreLocation = useCallback(
+    async ({ showSuccessToast = false } = {}) => {
+      setIsPendingOpen(true);
 
       try {
-        await updateLocation(
-          position.coords.latitude,
-          position.coords.longitude,
-          getToken,
-        );
+        const position = await requestBrowserLocation();
+
+        try {
+          await updateLocation(
+            position.coords.latitude,
+            position.coords.longitude,
+            getToken,
+          );
+        } catch (error) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Não foi possível sincronizar sua localização agora.';
+
+          if (isTechnicalLocationSyncMessage(message)) {
+            console.warn('Location sync skipped during session prompt:', message);
+          } else {
+            throw error;
+          }
+        }
+
+        setIsHelpOpen(false);
+
+        if (showSuccessToast) {
+          showSuccess('Localização atualizada com sucesso.');
+        }
       } catch (error) {
         const message =
           error instanceof Error
             ? error.message
-            : 'Não foi possível sincronizar sua localização agora.';
+            : 'Não foi possível obter sua localização agora.';
 
-        if (isTechnicalLocationSyncMessage(message)) {
+        if (isLocationPermissionMessage(message)) {
+          setIsHelpOpen(true);
+        } else if (isTechnicalLocationSyncMessage(message)) {
           console.warn('Location sync skipped during session prompt:', message);
         } else {
-          throw error;
+          console.warn('Location prompt failed:', message);
         }
+      } finally {
+        setIsPendingOpen(false);
       }
-
-      setIsHelpOpen(false);
-
-      if (showSuccessToast) {
-        showSuccess('Localização atualizada com sucesso.');
-      }
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Não foi possível obter sua localização agora.';
-
-      if (isLocationPermissionMessage(message)) {
-        setIsHelpOpen(true);
-      } else if (isTechnicalLocationSyncMessage(message)) {
-        console.warn('Location sync skipped during session prompt:', message);
-      } else {
-        console.warn('Location prompt failed:', message);
-      }
-    } finally {
-      setIsPendingOpen(false);
-    }
-  };
+    },
+    [getToken, showSuccess],
+  );
 
   useEffect(() => {
     if (!isSignedIn) {
@@ -96,7 +99,15 @@ export default function SessionLocationPrompt() {
 
     lastAttemptKeyRef.current = currentAttemptKey;
     void requestAndStoreLocation();
-  }, [appUser, isLoaded, isSignedIn, sessionId, status, userId]);
+  }, [
+    appUser,
+    isLoaded,
+    isSignedIn,
+    requestAndStoreLocation,
+    sessionId,
+    status,
+    userId,
+  ]);
 
   if (!isSignedIn || status !== 'ready') {
     return null;

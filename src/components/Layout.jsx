@@ -14,6 +14,7 @@ export default function Layout() {
   const location = useLocation();
   const { appUser, clerkUser } = useAppAuth();
   const isAdmin = appUser?.role === 'ADMIN';
+  const isSupervisor = appUser?.role === 'SUPERVISOR';
   const roleLabel =
     appUser?.role === 'ADMIN'
       ? 'Administrador'
@@ -35,6 +36,9 @@ export default function Layout() {
       ]
     : [
         { icon: Home, label: 'Inicio', to: '/tech' },
+        ...(isSupervisor
+          ? [{ icon: MapPin, label: 'Mapa', to: '/supervisor/map' }]
+          : []),
       ];
 
   const isTabActive = (to) => {

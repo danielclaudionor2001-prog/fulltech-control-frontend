@@ -105,7 +105,6 @@ export function AppAuthProvider({ children }) {
     }
 
     if (!isSignedIn || !sessionId || !userId) {
-      setState(initialResolvedState);
       return;
     }
 

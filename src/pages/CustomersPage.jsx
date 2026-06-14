@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ButtonSpinner from '../components/ButtonSpinner';
 import ModalShell from '../components/ModalShell';
 import SkeletonBlock from '../components/SkeletonBlock';
-import { useToast } from '../components/ToastProvider';
+import { useToast } from '../components/ToastContext';
 import {
   createCustomer,
   deleteCustomer,
@@ -17,14 +17,6 @@ const initialFormState = {
   email: '',
   name: '',
   phones: [''],
-};
-
-const formatDateTime = (dateLike) => {
-  if (!dateLike) {
-    return '-';
-  }
-
-  return new Date(dateLike).toLocaleString('pt-BR');
 };
 
 const normalizePhones = (phones) =>

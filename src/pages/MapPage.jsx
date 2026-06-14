@@ -2,12 +2,13 @@ import { useAuth } from '@clerk/clerk-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { MapPin, RefreshCw } from 'lucide-react';
+import { MapPin, RefreshCw, Users } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import ButtonSpinner from '../components/ButtonSpinner';
-import { useToast } from '../components/ToastProvider';
+import SelectField from '../components/SelectField';
+import { useToast } from '../components/ToastContext';
 import { getLocations } from '../services/api';
 import {
   buildGoogleMapsUrl,
@@ -16,6 +17,18 @@ import {
 
 const SAO_PAULO_STATE_CENTER = [-22.55, -48.63];
 const SAO_PAULO_STATE_ZOOM = 7;
+const RESPONSIBLE_COLORS = [
+  '#0057b8',
+  '#0f9f6e',
+  '#c76b00',
+  '#7c3aed',
+  '#c0266d',
+  '#047481',
+  '#b91c1c',
+  '#2563eb',
+  '#5b7f00',
+  '#9333ea',
+];
 
 const defaultIcon = L.icon({
   iconAnchor: [12, 41],
@@ -25,6 +38,28 @@ const defaultIcon = L.icon({
 });
 
 L.Marker.prototype.options.icon = defaultIcon;
+
+const getResponsibleName = (responsible) =>
+  responsible?.name ||
+  responsible?.email ||
+  responsible?.clerkUserId ||
+  'Responsável';
+
+const getResponsibleRoleLabel = (role) =>
+  role === 'SUPERVISOR'
+    ? 'Supervisor'
+    : role === 'TECH'
+      ? 'Técnico'
+      : 'Responsável';
+
+const createResponsibleIcon = (color) =>
+  L.divIcon({
+    className: 'responsible-marker-icon',
+    html: `<span class="responsible-marker-pin" style="--marker-color:${color}"><span></span></span>`,
+    iconAnchor: [17, 40],
+    iconSize: [34, 42],
+    popupAnchor: [0, -34],
+  });
 
 function MapViewport({ locations }) {
   const map = useMap();
@@ -70,6 +105,7 @@ export default function MapPage() {
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedResponsibleId, setSelectedResponsibleId] = useState('');
 
   const fetchLocations = useCallback(async () => {
     setLoading(true);
@@ -109,10 +145,88 @@ export default function MapPage() {
     }
   };
 
+  const responsibleColorById = useMemo(() => {
+    const responsibleIds = Array.from(
+      new Set(
+        locations
+          .map((location) => location.responsible?.id)
+          .filter(Boolean),
+      ),
+    ).sort((left, right) => left.localeCompare(right));
+
+    return new Map(
+      responsibleIds.map((responsibleId, index) => [
+        responsibleId,
+        RESPONSIBLE_COLORS[index % RESPONSIBLE_COLORS.length],
+      ]),
+    );
+  }, [locations]);
+
+  const markerIconsByResponsibleId = useMemo(
+    () =>
+      new Map(
+        Array.from(responsibleColorById.entries()).map(([responsibleId, color]) => [
+          responsibleId,
+          createResponsibleIcon(color),
+        ]),
+      ),
+    [responsibleColorById],
+  );
+
+  const responsibleOptions = useMemo(() => {
+    const responsibleById = new Map();
+
+    locations.forEach((location) => {
+      const responsible = location.responsible;
+
+      if (!responsible?.id || responsibleById.has(responsible.id)) {
+        return;
+      }
+
+      responsibleById.set(responsible.id, responsible);
+    });
+
+    const options = Array.from(responsibleById.values())
+      .sort((left, right) =>
+        getResponsibleName(left).localeCompare(getResponsibleName(right)),
+      )
+      .map((responsible) => ({
+        label: `${getResponsibleName(responsible)} - ${getResponsibleRoleLabel(
+          responsible.role,
+        )}`,
+        value: responsible.id,
+      }));
+
+    return [{ label: 'Todos', value: '' }, ...options];
+  }, [locations]);
+
+  const filteredLocations = useMemo(
+    () =>
+      selectedResponsibleId
+        ? locations.filter(
+            (location) => location.responsible?.id === selectedResponsibleId,
+          )
+        : locations,
+    [locations, selectedResponsibleId],
+  );
+
+  useEffect(() => {
+    if (
+      selectedResponsibleId &&
+      !locations.some(
+        (location) => location.responsible?.id === selectedResponsibleId,
+      )
+    ) {
+      setSelectedResponsibleId('');
+    }
+  }, [locations, selectedResponsibleId]);
+
   const emptyStateMessage = useMemo(
     () =>
-      'Nenhuma localização de responsável foi registrada ainda. O mapa já está posicionado no estado de São Paulo.',
-    [],
+      selectedResponsibleId
+        ? 'Nenhuma localização foi encontrada para o responsável selecionado.'
+        : 'Nenhuma localização de responsável foi registrada ainda. O mapa já está posicionado no estado de São Paulo.',
+    [selectedResponsibleId],
   );
 
   return (
@@ -138,6 +252,47 @@ export default function MapPage() {
         </button>
       </div>
 
+      <section className="section-card map-filter-card">
+        <div className="section-title">
+          <Users size={18} />
+          <div>
+            <h3>Filtro de localização</h3>
+            <p className="section-subtitle">
+              Selecione um técnico ou supervisor para visualizar somente a
+              localização dele no mapa.
+            </p>
+          </div>
+        </div>
+
+        <div className="map-filter-grid">
+          <label className="simple-form-field">
+            <span>Responsável</span>
+            <SelectField
+              onChange={setSelectedResponsibleId}
+              options={responsibleOptions}
+              placeholder="Todos"
+              value={selectedResponsibleId}
+            />
+          </label>
+
+          <div className="map-legend" aria-label="Cores dos responsáveis">
+            {responsibleOptions.slice(1).map((option) => (
+              <span className="map-legend-item" key={option.value}>
+                <span
+                  className="map-color-dot"
+                  style={{
+                    backgroundColor:
+                      responsibleColorById.get(option.value) ||
+                      RESPONSIBLE_COLORS[0],
+                  }}
+                />
+                {option.label}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="section-card map-card">
         <div className="map-frame map-frame-rich">
           <MapContainer
@@ -150,20 +305,21 @@ export default function MapPage() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
-            <MapViewport locations={locations} />
+            <MapViewport locations={filteredLocations} />
 
-            {locations.map((location) => (
+            {filteredLocations.map((location) => (
               <Marker
-                key={`${location.responsible.id}-${location.timestamp}`}
+                icon={
+                  markerIconsByResponsibleId.get(location.responsible?.id) ||
+                  defaultIcon
+                }
+                key={`${location.responsible?.id || 'responsavel'}-${location.timestamp}`}
                 position={[location.lat, location.lng]}
               >
                 <Popup>
-                  <strong>
-                    {location.responsible.name ||
-                      location.responsible.email ||
-                      location.responsible.clerkUserId ||
-                      'Responsável'}
-                  </strong>
+                  <strong>{getResponsibleName(location.responsible)}</strong>
+                  <br />
+                  Perfil: {getResponsibleRoleLabel(location.responsible?.role)}
                   <br />
                   Última atualização: {formatLastUpdate(location.timestamp)}
                   <br />
@@ -206,7 +362,7 @@ export default function MapPage() {
             ))}
           </MapContainer>
 
-          {!loading && locations.length === 0 ? (
+          {!loading && filteredLocations.length === 0 ? (
             <div className="map-empty-overlay">
               <MapPin size={18} />
               <span>{emptyStateMessage}</span>

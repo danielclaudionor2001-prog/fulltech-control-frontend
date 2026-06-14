@@ -1,5 +1,6 @@
 import { useAuth } from '@clerk/clerk-react';
 import {
+  BarChart3,
   CheckCircle2,
   CircleAlert,
   Clock3,
@@ -18,7 +19,7 @@ import ProximityWarningModal from '../components/ProximityWarningModal';
 import SelectField from '../components/SelectField';
 import ServiceOrderSlider from '../components/ServiceOrderSlider';
 import SkeletonBlock from '../components/SkeletonBlock';
-import { useToast } from '../components/ToastProvider';
+import { useToast } from '../components/ToastContext';
 import {
   getCustomers,
   getServiceOrders,
@@ -67,6 +68,8 @@ const getRoleLabel = (role) => {
 
   return 'Técnico';
 };
+
+const getUserDisplayName = (user) => user.name || user.email || user.clerkUserId;
 
 const initialOrderFilters = {
   assignedToId: '',
@@ -161,6 +164,10 @@ export default function AdminDashboard() {
     () => users.filter((user) => user.role === 'ADMIN'),
     [users],
   );
+  const operationalUsers = useMemo(
+    () => users.filter((user) => user.role === 'TECH' || user.role === 'SUPERVISOR'),
+    [users],
+  );
   const pendingOrders = useMemo(
     () => orders.filter((order) => order.status === 'OPEN'),
     [orders],
@@ -200,6 +207,48 @@ export default function AdminDashboard() {
       })),
     ],
     [customers],
+  );
+  const teamOrderStats = useMemo(
+    () =>
+      operationalUsers
+        .map((user) => {
+          const userOrders = orders.filter((order) => order.assignedToId === user.id);
+          const pending = userOrders.filter((order) => order.status === 'OPEN').length;
+          const inProgress = userOrders.filter(
+            (order) => order.status === 'IN_PROGRESS',
+          ).length;
+          const finished = userOrders.filter(
+            (order) => order.status === 'DONE' || order.status === 'WITH_PENDING',
+          ).length;
+          const canceled = userOrders.filter(
+            (order) => order.status === 'CANCELED',
+          ).length;
+          const total = userOrders.length;
+
+          return {
+            canceled,
+            finished,
+            inProgress,
+            pending,
+            role: user.role,
+            subtitle: user.email || user.clerkUserId,
+            total,
+            userId: user.id,
+            userName: getUserDisplayName(user),
+          };
+        })
+        .sort((left, right) => {
+          if (right.total !== left.total) {
+            return right.total - left.total;
+          }
+
+          return left.userName.localeCompare(right.userName);
+        }),
+    [operationalUsers, orders],
+  );
+  const maxTeamOrders = useMemo(
+    () => Math.max(1, ...teamOrderStats.map((stat) => stat.total)),
+    [teamOrderStats],
   );
 
   const visibleOrders = useMemo(
@@ -380,13 +429,13 @@ export default function AdminDashboard() {
             <small>Atendimentos ativos em campo agora</small>
           </div>
           <div className="summary-card summary-card-slate">
-            <span className="summary-label">Técnicos</span>
+            <span className="summary-label">Equipe técnica</span>
             {isInitialLoading ? (
               <SkeletonBlock className="skeleton-number" />
             ) : (
-              <strong>{techUsers.length}</strong>
+              <strong>{operationalUsers.length}</strong>
             )}
-            <small>Usuários com execução operacional</small>
+            <small>Técnicos e supervisores em execução operacional</small>
           </div>
           <div className="summary-card summary-card-amber">
             <span className="summary-label">Pendentes</span>
@@ -468,6 +517,89 @@ export default function AdminDashboard() {
                 Mantenha a base simples de clientes com nome e endereço.
               </span>
             </Link>
+          </div>
+
+          <div className="team-workload-panel">
+            <div className="team-workload-heading">
+              <div>
+                <span className="mini-overline">Produtividade</span>
+                <h4>OS por técnico ou supervisor</h4>
+              </div>
+
+              <BarChart3 size={20} />
+            </div>
+
+            <div className="team-workload-legend" aria-label="Legenda do gráfico">
+              <span><i className="legend-dot legend-pending" />Pendentes</span>
+              <span><i className="legend-dot legend-progress" />Em andamento</span>
+              <span><i className="legend-dot legend-done" />Finalizadas</span>
+            </div>
+
+            {isInitialLoading ? (
+              <div className="skeleton-card-stack">
+                <SkeletonBlock className="skeleton-line" />
+                <SkeletonBlock className="skeleton-line" />
+                <SkeletonBlock className="skeleton-line-short" />
+              </div>
+            ) : teamOrderStats.length === 0 ? (
+              <div className="empty-state compact-empty">
+                <CircleAlert size={18} />
+                <span>Nenhum técnico ou supervisor cadastrado ainda.</span>
+              </div>
+            ) : (
+              <div className="team-workload-list">
+                {teamOrderStats.map((stat) => {
+                  const pendingWidth = stat.total
+                    ? `${(stat.pending / maxTeamOrders) * 100}%`
+                    : '0%';
+                  const progressWidth = stat.total
+                    ? `${(stat.inProgress / maxTeamOrders) * 100}%`
+                    : '0%';
+                  const doneWidth = stat.total
+                    ? `${(stat.finished / maxTeamOrders) * 100}%`
+                    : '0%';
+
+                  return (
+                    <div className="team-workload-row" key={stat.userId}>
+                      <div className="team-workload-copy">
+                        <div>
+                          <strong>{stat.userName}</strong>
+                          <small>
+                            {getRoleLabel(stat.role)} • {stat.subtitle || 'Sem e-mail'}
+                          </small>
+                        </div>
+                        <span>{stat.total} OS</span>
+                      </div>
+
+                      <div
+                        aria-label={`${stat.userName}: ${stat.pending} pendente(s), ${stat.inProgress} em andamento e ${stat.finished} finalizada(s)`}
+                        className="team-workload-bar"
+                        role="img"
+                      >
+                        <span
+                          className="team-workload-segment workload-pending"
+                          style={{ width: pendingWidth }}
+                        />
+                        <span
+                          className="team-workload-segment workload-progress"
+                          style={{ width: progressWidth }}
+                        />
+                        <span
+                          className="team-workload-segment workload-done"
+                          style={{ width: doneWidth }}
+                        />
+                      </div>
+
+                      <div className="team-workload-counts">
+                        <span>{stat.pending} pendente</span>
+                        <span>{stat.inProgress} andamento</span>
+                        <span>{stat.finished} finalizada</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
 

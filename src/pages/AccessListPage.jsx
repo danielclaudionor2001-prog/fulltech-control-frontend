@@ -6,7 +6,7 @@ import ButtonSpinner from '../components/ButtonSpinner';
 import ModalShell from '../components/ModalShell';
 import SelectField from '../components/SelectField';
 import SkeletonBlock from '../components/SkeletonBlock';
-import { useToast } from '../components/ToastProvider';
+import { useToast } from '../components/ToastContext';
 import {
   createAllowedEmail,
   getAccessList,

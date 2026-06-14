@@ -1,11 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { Download, FileText, UserCircle, X } from 'lucide-react';
+import { Download, FileText, UserCircle } from 'lucide-react';
 import ButtonSpinner from './ButtonSpinner';
-import { useToast } from './ToastProvider';
-import {
-  formatServiceOrderDateTime,
-  getServiceOrderStatusLabel,
-} from '../utils/serviceOrderStatus';
+import ModalShell from './ModalShell';
+import { useToast } from './ToastContext';
+import { getServiceOrderStatusLabel } from '../utils/serviceOrderStatus';
 import { downloadServiceOrderPdf } from '../utils/serviceOrderPdf';
 
 const SERVICE_TYPE_LABELS = {
@@ -76,6 +74,11 @@ const normalizeValue = (value) => {
 
 const getPersonLabel = (person) =>
   person?.name || person?.email || person?.clerkUserId || 'Não informado';
+
+const getResponsibleTitle = (person) =>
+  person?.role === 'SUPERVISOR'
+    ? 'Supervisor responsável'
+    : 'Técnico responsável';
 
 const getServiceOrderId = (os) =>
   os.identifier ? os.identifier : os.id?.slice(0, 8)?.toUpperCase();
@@ -155,6 +158,7 @@ export default function OSDetailsModal({ onClose, os }) {
   const serviceOrderId = getServiceOrderId(os);
   const serviceType = SERVICE_TYPE_LABELS[os.osType] || normalizeValue(os.osType);
   const technicianLabel = getPersonLabel(os.assignedTo);
+  const responsibleTitle = getResponsibleTitle(os.assignedTo);
   const defectSolution = useMemo(() => getDefectSolution(os), [os]);
   const equipmentStatus = useMemo(() => getEquipmentStatus(os), [os]);
   const isElevatorRunning = ['running', 'running_with_pending'].includes(
@@ -180,35 +184,14 @@ export default function OSDetailsModal({ onClose, os }) {
   };
 
   return (
-    <div className="modal-backdrop" role="presentation">
-      <article
-        aria-label="Detalhes da ordem de serviço"
-        aria-modal="true"
-        className="modal-card os-details-modal os-report-modal"
-        role="dialog"
-      >
-        <div className="modal-header">
-          <div className="modal-copy">
-            <span className="page-eyebrow">Ordem de serviço</span>
-            <h2 className="modal-title">
-              {serviceOrderId ? `OS ${serviceOrderId}` : 'OS'}
-            </h2>
-            <p className="modal-subtitle">
-              Visualização organizada no padrão final da ordem de serviço.
-            </p>
-          </div>
-
-          <button
-            aria-label="Fechar detalhes da OS"
-            className="modal-close"
-            onClick={onClose}
-            type="button"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="modal-body">
+    <ModalShell
+      className="os-details-modal os-report-modal"
+      description="Visualização organizada no padrão final da ordem de serviço."
+      icon={FileText}
+      onClose={onClose}
+      open
+      title={serviceOrderId ? `OS ${serviceOrderId}` : 'OS'}
+    >
           <div className="os-report-sheet">
             <header className="os-report-header">
               <div className="os-report-brand">
@@ -268,7 +251,7 @@ export default function OSDetailsModal({ onClose, os }) {
                 />
                 <MetricCard label="Fim" value={formatDateTime(os.updatedAt)} />
 
-                <InfoCard title="Técnico responsável">
+                <InfoCard title={responsibleTitle}>
                   <div className="os-report-person">
                     <UserCircle size={34} />
                     <strong>{technicianLabel}</strong>
@@ -382,8 +365,6 @@ export default function OSDetailsModal({ onClose, os }) {
               </button>
             </div>
           ) : null}
-        </div>
-      </article>
-    </div>
+    </ModalShell>
   );
 }

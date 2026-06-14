@@ -3,7 +3,7 @@ import { Camera, ClipboardCheck } from 'lucide-react';
 import ButtonSpinner from './ButtonSpinner';
 import ModalShell from './ModalShell';
 import SelectField from './SelectField';
-import { useToast } from './ToastProvider';
+import { useToast } from './ToastContext';
 
 const DEFECT_OPTIONS = [
   { label: 'Sim', value: 'yes' },
@@ -293,106 +293,109 @@ export default function TechnicianConclusionModal({
 
   return (
     <ModalShell
+      className="technician-conclusion-modal"
       description={os.identifier ? `OS #${os.identifier}` : `OS #${os.id.slice(0, 8)}`}
       icon={ClipboardCheck}
       onClose={onClose}
       open
       title="Conclusão do Técnico"
     >
-      <form className="simple-form" onSubmit={handleSubmit}>
-        <label className="simple-form-field">
-          <span>Descrição do atendimento *</span>
-          <textarea
-            className="os-textarea"
-            maxLength={5000}
-            onChange={(event) => setCompletionDescription(event.target.value)}
-            placeholder="Explique o que foi feito, peças verificadas e resultado do atendimento."
-            value={completionDescription}
-          />
-        </label>
+      <form className="simple-form technician-conclusion-form" onSubmit={handleSubmit}>
+        <div className="technician-conclusion-scroll">
+          <label className="simple-form-field">
+            <span>Descrição do atendimento *</span>
+            <textarea
+              className="os-textarea"
+              maxLength={5000}
+              onChange={(event) => setCompletionDescription(event.target.value)}
+              placeholder="Explique o que foi feito, peças verificadas e resultado do atendimento."
+              value={completionDescription}
+            />
+          </label>
 
-        <label className="simple-form-field">
-          <span>O defeito foi ajustado? *</span>
-          <SelectField
-            onChange={setDefectAdjusted}
-            options={DEFECT_OPTIONS}
-            placeholder="Selecione"
-            value={defectAdjusted}
-          />
-        </label>
+          <label className="simple-form-field">
+            <span>O defeito foi ajustado? *</span>
+            <SelectField
+              onChange={setDefectAdjusted}
+              options={DEFECT_OPTIONS}
+              placeholder="Selecione"
+              value={defectAdjusted}
+            />
+          </label>
 
-        <label className="simple-form-field">
-          <span>Status da OS *</span>
-          <SelectField
-            onChange={setServiceOrderStatus}
-            options={OS_STATUS_OPTIONS}
-            placeholder="Selecione"
-            value={serviceOrderStatus}
-          />
-        </label>
+          <label className="simple-form-field">
+            <span>Status da OS *</span>
+            <SelectField
+              onChange={setServiceOrderStatus}
+              options={OS_STATUS_OPTIONS}
+              placeholder="Selecione"
+              value={serviceOrderStatus}
+            />
+          </label>
 
-        <label className="simple-form-field">
-          <span>Solução do defeito *</span>
-          <SelectField
-            onChange={setDefectSolution}
-            options={DEFECT_SOLUTION_OPTIONS}
-            placeholder="Selecione"
-            value={defectSolution}
-          />
-        </label>
+          <label className="simple-form-field">
+            <span>Solução do defeito *</span>
+            <SelectField
+              onChange={setDefectSolution}
+              options={DEFECT_SOLUTION_OPTIONS}
+              placeholder="Selecione"
+              value={defectSolution}
+            />
+          </label>
 
-        <label className="simple-form-field">
-          <span>Status do elevador *</span>
-          <SelectField
-            onChange={setEquipmentStatus}
-            options={EQUIPMENT_STATUS_OPTIONS}
-            placeholder="Selecione"
-            value={equipmentStatus}
-          />
-        </label>
+          <label className="simple-form-field">
+            <span>Status do elevador *</span>
+            <SelectField
+              onChange={setEquipmentStatus}
+              options={EQUIPMENT_STATUS_OPTIONS}
+              placeholder="Selecione"
+              value={equipmentStatus}
+            />
+          </label>
 
-        <label className="simple-form-field">
-          <span>Fotos do atendimento</span>
-          <input
-            accept="image/*"
-            capture="environment"
-            multiple
-            onChange={(event) => void handlePhotosChange(event)}
-            type="file"
-          />
-          <small className="section-subtitle">
-            Fotos de peças, problema identificado e serviço realizado.
-          </small>
-        </label>
+          <label className="simple-form-field">
+            <span>Fotos do atendimento</span>
+            <input
+              accept="image/*"
+              capture="environment"
+              multiple
+              onChange={(event) => void handlePhotosChange(event)}
+              type="file"
+            />
+            <small className="section-subtitle">
+              Fotos de peças, problema identificado e serviço realizado.
+            </small>
+          </label>
 
-        {completionPhotos.length ? (
-          <div className="os-card-meta-item">
-            <Camera size={16} />
-            <span>{completionPhotos.length} foto(s) selecionada(s)</span>
+          {completionPhotos.length ? (
+            <div className="os-card-meta-item">
+              <Camera size={16} />
+              <span>{completionPhotos.length} foto(s) selecionada(s)</span>
+            </div>
+          ) : null}
+
+          <div className="simple-form-field">
+            <span>Assinatura do cliente *</span>
+            <canvas
+              onPointerCancel={endSignature}
+              onPointerDown={beginSignature}
+              onLostPointerCapture={endSignature}
+              onPointerMove={drawSignature}
+              onPointerUp={endSignature}
+              className="signature-canvas"
+              ref={canvasRef}
+            />
+            <button
+              className="btn btn-secondary btn-compact"
+              onClick={clearSignature}
+              type="button"
+            >
+              Limpar assinatura
+            </button>
           </div>
-        ) : null}
-
-        <div className="simple-form-field">
-          <span>Assinatura do cliente *</span>
-          <canvas
-            onPointerCancel={endSignature}
-            onPointerDown={beginSignature}
-            onLostPointerCapture={endSignature}
-            onPointerMove={drawSignature}
-            onPointerUp={endSignature}
-            className="signature-canvas"
-            ref={canvasRef}
-          />
-          <button
-            className="btn btn-secondary btn-compact"
-            onClick={clearSignature}
-            type="button"
-          >
-            Limpar assinatura
-          </button>
         </div>
 
-        <div className="modal-actions">
+        <div className="modal-actions technician-conclusion-actions">
           <button
             className="btn btn-secondary"
             disabled={isSubmitting}

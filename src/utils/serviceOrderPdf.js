@@ -44,6 +44,11 @@ const normalizeValue = (value) => {
 const getPersonLabel = (person) =>
   person?.name || person?.email || person?.clerkUserId || 'Não informado';
 
+const getResponsibleTitle = (person) =>
+  person?.role === 'SUPERVISOR'
+    ? 'Supervisor responsável'
+    : 'Técnico responsável';
+
 const formatDateTime = (dateLike) => {
   if (!dateLike) {
     return 'Não informado';
@@ -431,7 +436,7 @@ export const downloadServiceOrderPdf = async (os) => {
   const cardGap = 4;
   const cardWidth = (contentWidth - cardGap) / 2;
   drawInfoCard(doc, {
-    height: 50,
+    height: 62,
     items: [
       { bold: true, size: 10.5, value: normalizeValue(os.customer) },
       { label: 'Identificador', value: serviceOrderId || 'Não informado' },
@@ -445,7 +450,7 @@ export const downloadServiceOrderPdf = async (os) => {
   });
 
   drawInfoCard(doc, {
-    height: 50,
+    height: 62,
     items: [
       { bold: true, size: 10, value: normalizeValue(os.customer) },
       { label: 'Endereço', value: normalizeValue(os.address) },
@@ -455,7 +460,7 @@ export const downloadServiceOrderPdf = async (os) => {
     x: marginX + cardWidth + cardGap,
     y,
   });
-  y += 62;
+  y += 74;
 
   drawSectionTitle(doc, 'Informações de atendimento', marginX, y);
   drawStatusPill(doc, os.status, 194, y);
@@ -494,7 +499,7 @@ export const downloadServiceOrderPdf = async (os) => {
     items: [
       { bold: true, size: 9.5, value: getPersonLabel(os.assignedTo) },
     ],
-    title: 'Técnico responsável',
+    title: getResponsibleTitle(os.assignedTo),
     width: contentWidth - metricWidth * 3 - 12,
     x: marginX + (metricWidth + 4) * 3,
     y,

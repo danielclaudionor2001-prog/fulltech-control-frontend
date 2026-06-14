@@ -1,8 +1,10 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export default function ModalShell({
   children,
+  className = '',
   description,
   icon: Icon,
   onClose,
@@ -28,7 +30,7 @@ export default function ModalShell({
     return null;
   }
 
-  return (
+  const modal = (
     <div
       aria-hidden="true"
       className="modal-backdrop"
@@ -36,7 +38,7 @@ export default function ModalShell({
     >
       <div
         aria-modal="true"
-        className="modal-card"
+        className={`modal-card ${className}`.trim()}
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >
@@ -68,4 +70,8 @@ export default function ModalShell({
       </div>
     </div>
   );
+
+  return typeof document === 'undefined'
+    ? modal
+    : createPortal(modal, document.body);
 }

@@ -16,7 +16,7 @@ import ProximityWarningModal from '../components/ProximityWarningModal';
 import SelectField from '../components/SelectField';
 import ServiceOrderSlider from '../components/ServiceOrderSlider';
 import SkeletonBlock from '../components/SkeletonBlock';
-import { useToast } from '../components/ToastProvider';
+import { useToast } from '../components/ToastContext';
 import {
   getServiceOrders,
   startServiceOrder,
@@ -227,7 +227,7 @@ export default function TechnicianDashboard() {
 
   const startOrderWithValidation = async (id) => {
     setBusyOrderId(id);
-    setBusyOrderAction('claim');
+    setBusyOrderAction('start');
     setLocationError('');
     setProximityAlertMessage('');
     setPendingStartOrderId(id);

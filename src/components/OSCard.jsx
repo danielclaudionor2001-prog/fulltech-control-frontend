@@ -5,9 +5,10 @@ import {
   Download,
   FileText,
   MapPin,
+  PlayCircle,
   User,
 } from 'lucide-react';
-import { useToast } from './ToastProvider';
+import { useToast } from './ToastContext';
 import ButtonSpinner from './ButtonSpinner';
 import OSDetailsModal from './OSDetailsModal';
 import TechnicianConclusionModal from './TechnicianConclusionModal';
@@ -26,7 +27,7 @@ const getStatusClassName = (status) => {
     case 'DONE':
       return 'status-badge status-done';
     case 'WITH_PENDING':
-      return 'status-badge status-pending';
+      return 'status-badge status-warning';
     case 'CANCELED':
       return 'status-badge status-canceled';
     default:
@@ -150,17 +151,19 @@ export default function OSCard({
 
           {isTechnician && os.status === 'OPEN' && onClaim ? (
             <button
-              className="btn btn-primary"
+              className="btn btn-warning"
               disabled={isActionBusy || isPdfLoading}
               onClick={() => void onClaim(os.id)}
               type="button"
             >
-              {busyAction === 'claim' ? <ButtonSpinner /> : null}
-              {busyAction === 'claim'
-                ? 'Validando local...'
-                : os.assignedToId
-                  ? 'Iniciar OS'
-                  : 'Assumir OS'}
+              {busyAction === 'start' || busyAction === 'claim' ? (
+                <ButtonSpinner />
+              ) : (
+                <PlayCircle size={18} />
+              )}
+              {busyAction === 'start' || busyAction === 'claim'
+                ? 'Iniciando...'
+                : 'Iniciar OS'}
             </button>
           ) : null}
 
@@ -169,6 +172,7 @@ export default function OSCard({
           os.status === 'IN_PROGRESS' &&
           onStatusUpdate ? (
             <button
+              aria-haspopup="dialog"
               className="btn btn-primary"
               disabled={isActionBusy || isPdfLoading}
               onClick={() => setIsConclusionOpen(true)}
@@ -179,7 +183,10 @@ export default function OSCard({
             </button>
           ) : null}
 
-          {!isTechnician && os.status === 'OPEN' && (onStatusUpdate || onAssign) ? (
+          {!isTechnician &&
+          !os.assignedToId &&
+          os.status === 'OPEN' &&
+          (onStatusUpdate || onAssign) ? (
             <button
               className="btn btn-secondary"
               disabled={isActionBusy || isPdfLoading}
