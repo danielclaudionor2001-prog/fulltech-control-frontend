@@ -65,9 +65,20 @@ function MapViewport({ locations }) {
   const map = useMap();
 
   useEffect(() => {
+    const syncMapSize = () => {
+      map.invalidateSize();
+    };
+
+    syncMapSize();
+    const frameId = window.requestAnimationFrame(syncMapSize);
+    const timeoutId = window.setTimeout(syncMapSize, 350);
+
     if (locations.length === 0) {
       map.setView(SAO_PAULO_STATE_CENTER, SAO_PAULO_STATE_ZOOM);
-      return;
+      return () => {
+        window.cancelAnimationFrame(frameId);
+        window.clearTimeout(timeoutId);
+      };
     }
 
     const bounds = L.latLngBounds(
@@ -78,6 +89,11 @@ function MapViewport({ locations }) {
       maxZoom: 14,
       padding: [42, 42],
     });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
+    };
   }, [locations, map]);
 
   return null;
@@ -296,9 +312,9 @@ export default function MapPage() {
       <section className="section-card map-card">
         <div className="map-frame map-frame-rich">
           <MapContainer
+            className="team-map-container"
             center={SAO_PAULO_STATE_CENTER}
             zoom={SAO_PAULO_STATE_ZOOM}
-            style={{ height: '100%', width: '100%' }}
           >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
