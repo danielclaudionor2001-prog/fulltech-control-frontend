@@ -87,7 +87,6 @@ export default function OSForm() {
     customerPhones: [],
     deadline: '',
     description: '',
-    identifier: '',
     osType: '',
     scheduleDate: getTodayInputValue(),
     scheduleTime: '',
@@ -379,11 +378,11 @@ export default function OSForm() {
                   <span>Identificador</span>
                   <input
                     className="form-control"
-                    name="identifier"
-                    onChange={handleChange}
-                    placeholder="Ex.: 24871"
+                    disabled
+                    placeholder="Gerado automaticamente"
+                    readOnly
                     type="text"
-                    value={formData.identifier}
+                    value=""
                   />
                 </label>
 

@@ -15,6 +15,7 @@ export default function Layout() {
   const { appUser, clerkUser } = useAppAuth();
   const isAdmin = appUser?.role === 'ADMIN';
   const isSupervisor = appUser?.role === 'SUPERVISOR';
+  const operationalMapPath = isSupervisor ? '/supervisor/map' : '/tech/map';
   const roleLabel =
     appUser?.role === 'ADMIN'
       ? 'Administrador'
@@ -36,9 +37,7 @@ export default function Layout() {
       ]
     : [
         { icon: Home, label: 'Inicio', to: '/tech' },
-        ...(isSupervisor
-          ? [{ icon: MapPin, label: 'Mapa', to: '/supervisor/map' }]
-          : []),
+        { icon: MapPin, label: 'Mapa', to: operationalMapPath },
       ];
 
   const isTabActive = (to) => {

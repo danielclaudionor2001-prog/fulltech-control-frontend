@@ -55,6 +55,14 @@ function App() {
             )}
           />
           <Route
+            path="/tech/map"
+            element={(
+              <RequireRole allowedRoles={['SUPERVISOR', 'TECH']}>
+                <MapPage />
+              </RequireRole>
+            )}
+          />
+          <Route
             path="/admin/customers"
             element={(
               <RequireRole allowedRoles={['ADMIN']}>

@@ -74,7 +74,6 @@ const toCreatePayload = (formData) => {
     ...(customerPhones.length ? { customerPhones } : {}),
     deadline: formData.deadline || undefined,
     description: formData.description,
-    identifier: formData.identifier || undefined,
     osType: formData.osType,
     scheduleDate: formData.scheduleDate,
     scheduleTime: formData.scheduleTime || undefined,
