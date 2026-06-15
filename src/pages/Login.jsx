@@ -83,7 +83,6 @@ export default function Login() {
           src="/brand/fulltech-wordmark.png"
         />
         <span className="auth-badge">Operação conectada</span>
-        <h1>Fulltech Control</h1>
 
         <div className="auth-highlights">
           <div className="auth-highlight">

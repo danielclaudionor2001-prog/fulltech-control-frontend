@@ -14,13 +14,16 @@ import { Link } from 'react-router-dom';
 import ButtonSpinner from '../components/ButtonSpinner';
 import LocationPermissionModal from '../components/LocationPermissionModal';
 import LocationRequestPendingModal from '../components/LocationRequestPendingModal';
+import ModalShell from '../components/ModalShell';
 import OSCard from '../components/OSCard';
 import ProximityWarningModal from '../components/ProximityWarningModal';
 import SelectField from '../components/SelectField';
+import ServiceOrderEditModal from '../components/ServiceOrderEditModal';
 import ServiceOrderSlider from '../components/ServiceOrderSlider';
 import SkeletonBlock from '../components/SkeletonBlock';
 import { useToast } from '../components/ToastContext';
 import {
+  deleteServiceOrder,
   getCustomers,
   getServiceOrders,
   getUsers,
@@ -83,6 +86,19 @@ const initialDisplayFilters = {
   status: '',
 };
 
+const getLocalDateKey = (dateLike = new Date()) => {
+  const date = new Date(dateLike);
+
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function AdminDashboard() {
   const { getToken } = useAuth();
   const { showError, showSuccess, showWarning } = useToast();
@@ -95,6 +111,8 @@ export default function AdminDashboard() {
   const [busyUserId, setBusyUserId] = useState('');
   const [busyOrderId, setBusyOrderId] = useState('');
   const [busyOrderAction, setBusyOrderAction] = useState('');
+  const [deletingOrder, setDeletingOrder] = useState(null);
+  const [editingOrder, setEditingOrder] = useState(null);
   const [filterDrafts, setFilterDrafts] = useState(initialOrderFilters);
   const [orderFilters, setOrderFilters] = useState(initialOrderFilters);
   const [displayFilters, setDisplayFilters] = useState(initialDisplayFilters);
@@ -103,6 +121,7 @@ export default function AdminDashboard() {
   const [isLocationPendingOpen, setIsLocationPendingOpen] = useState(false);
   const [proximityAlertMessage, setProximityAlertMessage] = useState('');
   const [pendingStartOrderId, setPendingStartOrderId] = useState('');
+  const [todayDateKey, setTodayDateKey] = useState(() => getLocalDateKey());
 
   const guidance = useMemo(() => buildLocationGuidance(), []);
 
@@ -139,6 +158,14 @@ export default function AdminDashboard() {
     void fetchDashboard().catch(() => {});
   }, [fetchDashboard]);
 
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      setTodayDateKey(getLocalDateKey());
+    }, 60000);
+
+    return () => window.clearInterval(timerId);
+  }, []);
+
   const handleRefresh = async () => {
     setRefreshing(true);
 
@@ -171,6 +198,13 @@ export default function AdminDashboard() {
   const pendingOrders = useMemo(
     () => orders.filter((order) => order.status === 'OPEN'),
     [orders],
+  );
+  const todayOrders = useMemo(
+    () =>
+      orders.filter(
+        (order) => getLocalDateKey(order.scheduleAt) === todayDateKey,
+      ),
+    [orders, todayDateKey],
   );
   const inProgressOrders = useMemo(
     () => orders.filter((order) => order.status === 'IN_PROGRESS'),
@@ -311,6 +345,58 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleEditOrder = async (payload) => {
+    if (!editingOrder) {
+      return;
+    }
+
+    setBusyOrderId(editingOrder.id);
+    setBusyOrderAction('edit');
+
+    try {
+      await updateServiceOrder(editingOrder.id, payload, getToken);
+      setEditingOrder(null);
+      await fetchDashboard();
+      showSuccess('OS atualizada com sucesso.');
+    } catch (error) {
+      console.error('Failed to edit service order', error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Nao foi possivel editar a OS agora.';
+      showError(message || 'Nao foi possivel editar a OS agora.');
+    } finally {
+      setBusyOrderId('');
+      setBusyOrderAction('');
+    }
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!deletingOrder) {
+      return;
+    }
+
+    setBusyOrderId(deletingOrder.id);
+    setBusyOrderAction('delete');
+
+    try {
+      await deleteServiceOrder(deletingOrder.id, getToken);
+      setDeletingOrder(null);
+      await fetchDashboard();
+      showSuccess('OS excluida com sucesso.');
+    } catch (error) {
+      console.error('Failed to delete service order', error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Nao foi possivel excluir a OS agora.';
+      showError(message || 'Nao foi possivel excluir a OS agora.');
+    } finally {
+      setBusyOrderId('');
+      setBusyOrderAction('');
+    }
+  };
+
   const handleRetryLocationAccess = async () => {
     setIsLocationHelpOpen(false);
 
@@ -411,13 +497,22 @@ export default function AdminDashboard() {
 
         <div className="summary-grid">
           <div className="summary-card summary-card-blue">
-            <span className="summary-label">Ordens</span>
+            <span className="summary-label">Total de OS</span>
             {isInitialLoading ? (
               <SkeletonBlock className="skeleton-number" />
             ) : (
               <strong>{orders.length}</strong>
             )}
             <small>Carteira operacional carregada no painel</small>
+          </div>
+          <div className="summary-card summary-card-day">
+            <span className="summary-label">Ordens do dia</span>
+            {isInitialLoading ? (
+              <SkeletonBlock className="skeleton-number" />
+            ) : (
+              <strong>{todayOrders.length}</strong>
+            )}
+            <small>OS agendadas para hoje</small>
           </div>
           <div className="summary-card summary-card-sky">
             <span className="summary-label">Em andamento</span>
@@ -861,9 +956,12 @@ export default function AdminDashboard() {
             renderItem={(os) => (
               <OSCard
                 busyAction={busyOrderId === os.id ? busyOrderAction : ''}
+                canManage
                 key={os.id}
                 isTechnician={false}
                 onAssign={handleStartOrderWithValidation}
+                onDelete={setDeletingOrder}
+                onEdit={setEditingOrder}
                 onStatusUpdate={handleStatusUpdate}
                 os={os}
               />
@@ -871,6 +969,61 @@ export default function AdminDashboard() {
           />
         )}
       </section>
+
+      {editingOrder ? (
+        <ServiceOrderEditModal
+          assignableUsers={operationalUsers}
+          customers={customers}
+          isSubmitting={
+            busyOrderId === editingOrder.id && busyOrderAction === 'edit'
+          }
+          onClose={() => setEditingOrder(null)}
+          onSubmit={(payload) => void handleEditOrder(payload)}
+          os={editingOrder}
+        />
+      ) : null}
+
+      {deletingOrder ? (
+        <ModalShell
+          description={
+            deletingOrder.identifier
+              ? `OS #${deletingOrder.identifier}`
+              : `OS #${deletingOrder.id.slice(0, 8)}`
+          }
+          icon={CircleAlert}
+          onClose={() => {
+            if (busyOrderAction !== 'delete') {
+              setDeletingOrder(null);
+            }
+          }}
+          open
+          title="Excluir OS"
+        >
+          <p className="section-subtitle">
+            Esta acao remove a ordem de servico criada. Somente OS pendente pode
+            ser excluida.
+          </p>
+          <div className="modal-actions">
+            <button
+              className="btn btn-secondary"
+              disabled={busyOrderAction === 'delete'}
+              onClick={() => setDeletingOrder(null)}
+              type="button"
+            >
+              Cancelar
+            </button>
+            <button
+              className="btn btn-warning"
+              disabled={busyOrderAction === 'delete'}
+              onClick={() => void handleDeleteOrder()}
+              type="button"
+            >
+              {busyOrderAction === 'delete' ? <ButtonSpinner /> : null}
+              {busyOrderAction === 'delete' ? 'Excluindo...' : 'Excluir OS'}
+            </button>
+          </div>
+        </ModalShell>
+      ) : null}
 
       <LocationRequestPendingModal
         description="Aceite a solicitacao de localizacao do navegador para validarmos sua presenca perto do cliente."

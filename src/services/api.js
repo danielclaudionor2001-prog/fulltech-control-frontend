@@ -174,6 +174,12 @@ export const updateServiceOrder = async (id, data, getToken) => {
   return normalizeServiceOrder(updated);
 };
 
+export const deleteServiceOrder = (id, getToken) =>
+  request(`/service-orders/${id}`, {
+    getToken,
+    method: 'DELETE',
+  });
+
 export const startServiceOrder = async (id, lat, lng, getToken) => {
   const updated = await request(`/service-orders/${id}/start`, {
     body: JSON.stringify({ lat, lng }),

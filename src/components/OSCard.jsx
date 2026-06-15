@@ -5,7 +5,9 @@ import {
   Download,
   FileText,
   MapPin,
+  Pencil,
   PlayCircle,
+  Trash2,
   User,
 } from 'lucide-react';
 import { useToast } from './ToastContext';
@@ -37,9 +39,12 @@ const getStatusClassName = (status) => {
 
 export default function OSCard({
   busyAction = '',
+  canManage,
   isTechnician,
   onAssign,
   onClaim,
+  onDelete,
+  onEdit,
   onStatusUpdate,
   os,
 }) {
@@ -51,6 +56,13 @@ export default function OSCard({
   const technicianLabel =
     os.assignedTo?.name || os.assignedTo?.email || os.technicianId || null;
   const isActionBusy = Boolean(busyAction);
+  const canManageOrder = canManage ?? !isTechnician;
+  const canEditOrder =
+    canManageOrder &&
+    ['OPEN', 'DONE', 'WITH_PENDING'].includes(os.status) &&
+    typeof onEdit === 'function';
+  const canDeleteOrder =
+    canManageOrder && os.status === 'OPEN' && typeof onDelete === 'function';
 
   const handleAdminProgress = () => {
     if (onAssign) {
@@ -149,6 +161,30 @@ export default function OSCard({
             </button>
           ) : null}
 
+          {canEditOrder ? (
+            <button
+              className="btn btn-secondary"
+              disabled={isActionBusy || isPdfLoading}
+              onClick={() => onEdit(os)}
+              type="button"
+            >
+              {busyAction === 'edit' ? <ButtonSpinner /> : <Pencil size={18} />}
+              {busyAction === 'edit' ? 'Salvando...' : 'Editar OS'}
+            </button>
+          ) : null}
+
+          {canDeleteOrder ? (
+            <button
+              className="btn btn-outline"
+              disabled={isActionBusy || isPdfLoading}
+              onClick={() => onDelete(os)}
+              type="button"
+            >
+              {busyAction === 'delete' ? <ButtonSpinner /> : <Trash2 size={18} />}
+              {busyAction === 'delete' ? 'Excluindo...' : 'Excluir OS'}
+            </button>
+          ) : null}
+
           {isTechnician && os.status === 'OPEN' && onClaim ? (
             <button
               className="btn btn-warning"
@@ -183,7 +219,8 @@ export default function OSCard({
             </button>
           ) : null}
 
-          {!isTechnician &&
+          {canManageOrder &&
+          !isTechnician &&
           !os.assignedToId &&
           os.status === 'OPEN' &&
           (onStatusUpdate || onAssign) ? (

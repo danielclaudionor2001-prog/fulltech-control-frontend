@@ -514,7 +514,7 @@ export default function OSForm() {
                 </label>
               </div>
 
-              {isAdmin ? (
+              {canCreateServiceOrder ? (
                 <div className="os-row cols-1">
                   <label className="simple-form-field">
                     <span>Técnico responsável</span>

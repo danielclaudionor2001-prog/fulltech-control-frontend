@@ -15,7 +15,13 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         skipWaiting: true,
       },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: [
+        'favicon.ico',
+        'apple-touch-icon.png',
+        'genfavicon-180.png',
+        'genfavicon-256.png',
+        'genfavicon-512.png',
+      ],
       manifest: {
         name: 'Fulltech Control',
         short_name: 'Fulltech',
@@ -23,12 +29,17 @@ export default defineConfig({
         theme_color: '#ffffff',
         icons: [
           {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
+            src: 'genfavicon-180.png',
+            sizes: '180x180',
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'genfavicon-256.png',
+            sizes: '256x256',
+            type: 'image/png'
+          },
+          {
+            src: 'genfavicon-512.png',
             sizes: '512x512',
             type: 'image/png'
           }
