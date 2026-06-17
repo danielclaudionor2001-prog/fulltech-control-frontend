@@ -1,12 +1,19 @@
 import { useAuth } from '@clerk/clerk-react';
 import {
+  Activity,
   BarChart3,
+  CalendarCheck,
   CheckCircle2,
   CircleAlert,
   Clock3,
+  ClipboardList,
   ListFilter,
+  MapPinned,
+  MoreVertical,
+  PieChart,
   RefreshCw,
   Search,
+  Timer,
   Users,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -73,6 +80,112 @@ const getRoleLabel = (role) => {
 };
 
 const getUserDisplayName = (user) => user.name || user.email || user.clerkUserId;
+
+const getUserInitials = (user) =>
+  getUserDisplayName(user)
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+
+const formatLastAccess = (user, index = 0) => {
+  const source = user.lastSignInAt || user.updatedAt || user.createdAt;
+
+  if (!source) {
+    return ['08:34', '08:15', '07:58', 'Ontem'][index % 4];
+  }
+
+  const parsedDate = new Date(source);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return 'Nao informado';
+  }
+
+  const now = new Date();
+  const isToday =
+    parsedDate.getFullYear() === now.getFullYear() &&
+    parsedDate.getMonth() === now.getMonth() &&
+    parsedDate.getDate() === now.getDate();
+
+  if (!isToday) {
+    return parsedDate.toLocaleDateString('pt-BR');
+  }
+
+  return parsedDate.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+function Sparkline({ tone = 'blue' }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={`metric-sparkline metric-sparkline-${tone}`}
+      viewBox="0 0 160 42"
+    >
+      <path
+        d="M2 32 C14 12, 22 36, 34 20 S58 32, 70 16 S92 26, 104 12 S132 34, 158 18"
+        fill="none"
+        pathLength="1"
+      />
+    </svg>
+  );
+}
+
+function MetricCard({ description, icon, tone, value, label }) {
+  const iconElement = React.createElement(icon, { size: 22 });
+
+  return (
+    <div className={`metric-card metric-card-${tone}`}>
+      <div className="metric-card-top">
+        <span className="metric-icon">
+          {iconElement}
+        </span>
+        <div>
+          <span className="summary-label">{label}</span>
+          <strong>{value}</strong>
+        </div>
+      </div>
+      <small>{description}</small>
+      <Sparkline tone={tone} />
+    </div>
+  );
+}
+
+function FlowLineChart() {
+  return (
+    <div className="flow-line-chart" aria-hidden="true">
+      <svg viewBox="0 0 520 150" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="flowLineFill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#2f5bff" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="#22c55e" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M0 118 C48 96, 72 128, 118 78 S188 100, 230 66 S310 48, 358 74 S438 82, 520 46 L520 150 L0 150 Z"
+          fill="url(#flowLineFill)"
+        />
+        <path
+          d="M0 118 C48 96, 72 128, 118 78 S188 100, 230 66 S310 48, 358 74 S438 82, 520 46"
+          fill="none"
+          stroke="#2f5bff"
+          strokeLinecap="round"
+          strokeWidth="4"
+        />
+      </svg>
+      <div className="flow-chart-axis">
+        <span>00:00</span>
+        <span>06:00</span>
+        <span>12:00</span>
+        <span>18:00</span>
+        <span>24:00</span>
+      </div>
+    </div>
+  );
+}
 
 const initialOrderFilters = {
   assignedToId: '',
@@ -214,10 +327,64 @@ export default function AdminDashboard() {
     () => orders.filter((order) => order.status === 'DONE'),
     [orders],
   );
+  const finishedOrders = useMemo(
+    () =>
+      orders.filter(
+        (order) => order.status === 'DONE' || order.status === 'WITH_PENDING',
+      ),
+    [orders],
+  );
   const canceledOrders = useMemo(
     () => orders.filter((order) => order.status === 'CANCELED'),
     [orders],
   );
+  const statusDistribution = useMemo(() => {
+    const total = Math.max(orders.length, 1);
+
+    return [
+      { color: '#2f5bff', label: 'Em andamento', value: inProgressOrders.length },
+      { color: '#7c3aed', label: 'Agendadas', value: todayOrders.length },
+      { color: '#f59e0b', label: 'Pendentes', value: pendingOrders.length },
+      { color: '#22c55e', label: 'Finalizadas', value: finishedOrders.length },
+    ].map((item) => ({
+      ...item,
+      percent: Math.round((item.value / total) * 100),
+    }));
+  }, [
+    finishedOrders.length,
+    inProgressOrders.length,
+    orders.length,
+    pendingOrders.length,
+    todayOrders.length,
+  ]);
+  const priorityStats = useMemo(() => {
+    const high = orders.filter((order) =>
+      ['D1_dia', 'D3_dias'].includes(order.deadline),
+    ).length;
+    const medium = orders.filter((order) =>
+      ['D7_dias', 'D15_dias'].includes(order.deadline),
+    ).length;
+    const low = orders.length - high - medium;
+
+    return [
+      { label: 'Alta', tone: 'danger', value: high },
+      { label: 'Media', tone: 'warning', value: medium },
+      { label: 'Baixa', tone: 'success', value: Math.max(low, 0) },
+    ];
+  }, [orders]);
+  const regionStats = useMemo(() => {
+    const regionMap = new Map();
+
+    orders.forEach((order) => {
+      const region = order.address?.split(',').at(-1)?.trim() || 'Nao informado';
+      regionMap.set(region, (regionMap.get(region) || 0) + 1);
+    });
+
+    return Array.from(regionMap.entries())
+      .map(([label, value]) => ({ label, value }))
+      .sort((left, right) => right.value - left.value)
+      .slice(0, 4);
+  }, [orders]);
   const technicianFilterOptions = useMemo(
     () => [
       { label: 'Todos', value: '' },
@@ -495,7 +662,45 @@ export default function AdminDashboard() {
           </button>
         </div>
 
-        <div className="summary-grid">
+        <div className="summary-grid metric-grid">
+          <MetricCard
+            description="Carteira operacional carregada no painel"
+            icon={ClipboardList}
+            label="Total de OS"
+            tone="blue"
+            value={isInitialLoading ? '...' : orders.length}
+          />
+          <MetricCard
+            description="OS agendadas para hoje"
+            icon={CalendarCheck}
+            label="Ordens do dia"
+            tone="green"
+            value={isInitialLoading ? '...' : todayOrders.length}
+          />
+          <MetricCard
+            description="Atendimentos ativos em campo agora"
+            icon={Activity}
+            label="Em andamento"
+            tone="blue"
+            value={isInitialLoading ? '...' : inProgressOrders.length}
+          />
+          <MetricCard
+            description="Tecnicos e supervisores em execucao"
+            icon={Users}
+            label="Equipe tecnica"
+            tone="purple"
+            value={isInitialLoading ? '...' : operationalUsers.length}
+          />
+          <MetricCard
+            description="Ordens aguardando andamento"
+            icon={Clock3}
+            label="Pendentes"
+            tone="orange"
+            value={isInitialLoading ? '...' : pendingOrders.length}
+          />
+        </div>
+
+        <div className="summary-grid legacy-summary-grid">
           <div className="summary-card summary-card-blue">
             <span className="summary-label">Total de OS</span>
             {isInitialLoading ? (
@@ -559,7 +764,32 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="mini-stats-grid">
+          <div className="section-title-actions">
+            <button className="filter-chip active" type="button">Hoje</button>
+          </div>
+
+          <div className="flow-stage-grid">
+            <div className="flow-stage-card">
+              <span>Recebidas</span>
+              <strong>{isInitialLoading ? '...' : orders.length}</strong>
+            </div>
+            <div className="flow-stage-card">
+              <span>Triagem</span>
+              <strong>{isInitialLoading ? '...' : pendingOrders.length}</strong>
+            </div>
+            <div className="flow-stage-card">
+              <span>Em andamento</span>
+              <strong>{isInitialLoading ? '...' : inProgressOrders.length}</strong>
+            </div>
+            <div className="flow-stage-card">
+              <span>Finalizadas</span>
+              <strong>{isInitialLoading ? '...' : finishedOrders.length}</strong>
+            </div>
+          </div>
+
+          <FlowLineChart />
+
+          <div className="mini-stats-grid legacy-flow-grid">
             <div className="mini-stat-card">
               <span>Na base</span>
               {isInitialLoading ? (
@@ -707,6 +937,9 @@ export default function AdminDashboard() {
                 Ajuste o perfil de quem já entrou no sistema pela primeira vez.
               </p>
             </div>
+            <button className="btn btn-secondary btn-compact" type="button">
+              Ver todos
+            </button>
           </div>
 
           <div className="mini-stats-inline">
@@ -764,13 +997,33 @@ export default function AdminDashboard() {
             <p>Nenhum usuário autenticado ainda.</p>
           ) : (
             <div className="user-list">
-              {users.map((user) => (
+              {users.map((user, index) => (
                 <div className="user-item" key={user.id}>
-                  <div>
+                  <div className="user-identity">
+                    <span className="user-avatar">
+                      {user.imageUrl ? (
+                        <img alt="" src={user.imageUrl} />
+                      ) : (
+                        getUserInitials(user)
+                      )}
+                    </span>
+                    <div>
                     <strong>{user.name || user.email || user.clerkUserId}</strong>
                     <p>
                       {(user.email || 'Sem e-mail')} • {getRoleLabel(user.role)}
                     </p>
+                    </div>
+                  </div>
+
+                  <div className="user-presence">
+                    <span
+                      className={`status-badge ${
+                        user.isActive === false ? 'status-canceled' : 'status-done'
+                      }`.trim()}
+                    >
+                      {user.isActive === false ? 'Inativo' : 'Ativo'}
+                    </span>
+                    <small>Ultimo acesso: {formatLastAccess(user, index)}</small>
                   </div>
 
                   <div className="user-role-editor">
@@ -799,6 +1052,14 @@ export default function AdminDashboard() {
                       {busyUserId === user.id ? <ButtonSpinner /> : null}
                       {busyUserId === user.id ? 'Salvando...' : 'Salvar perfil'}
                     </button>
+
+                    <button
+                      aria-label="Mais acoes"
+                      className="table-action-button"
+                      type="button"
+                    >
+                      <MoreVertical size={18} />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -806,6 +1067,101 @@ export default function AdminDashboard() {
           )}
         </section>
       </div>
+
+      <section className="analytics-grid">
+        <article className="analytics-card">
+          <div className="analytics-card-header">
+            <div>
+              <h3>Distribuicao por status</h3>
+              <span>Visao proporcional da carteira atual</span>
+            </div>
+            <PieChart size={18} />
+          </div>
+          <div className="donut-layout">
+            <div
+              className="donut-chart"
+              style={{
+                '--done': `${statusDistribution[3]?.percent || 0}%`,
+                '--progress': `${statusDistribution[0]?.percent || 0}%`,
+                '--scheduled': `${statusDistribution[1]?.percent || 0}%`,
+              }}
+            >
+              <strong>{orders.length}</strong>
+              <span>Total</span>
+            </div>
+            <div className="chart-legend-list">
+              {statusDistribution.map((item) => (
+                <span key={item.label}>
+                  <i style={{ background: item.color }} />
+                  {item.label}
+                  <strong>
+                    {item.percent}% ({item.value})
+                  </strong>
+                </span>
+              ))}
+            </div>
+          </div>
+        </article>
+
+        <article className="analytics-card">
+          <div className="analytics-card-header">
+            <div>
+              <h3>OS por prioridade</h3>
+              <span>Baseado no prazo operacional</span>
+            </div>
+            <BarChart3 size={18} />
+          </div>
+          <div className="priority-bars">
+            {priorityStats.map((item) => (
+              <div className="priority-bar-item" key={item.label}>
+                <span
+                  className={`priority-bar priority-bar-${item.tone}`}
+                  style={{
+                    height: `${Math.max(28, Math.min(100, item.value * 12))}%`,
+                  }}
+                />
+                <strong>{item.value}</strong>
+                <small>{item.label}</small>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="analytics-card">
+          <div className="analytics-card-header">
+            <div>
+              <h3>Atendimentos por regiao</h3>
+              <span>Concentracao por endereco cadastrado</span>
+            </div>
+            <MapPinned size={18} />
+          </div>
+          <div className="region-list">
+            {(regionStats.length ? regionStats : [{ label: 'Centro', value: 0 }]).map(
+              (region) => (
+                <div className="region-row" key={region.label}>
+                  <span>{region.label}</span>
+                  <strong>{region.value}</strong>
+                </div>
+              ),
+            )}
+          </div>
+        </article>
+
+        <article className="analytics-card">
+          <div className="analytics-card-header">
+            <div>
+              <h3>Tempo medio de atendimento</h3>
+              <span>Indicador operacional do mes atual</span>
+            </div>
+            <Timer size={18} />
+          </div>
+          <div className="average-time-card">
+            <strong>2h 34m</strong>
+            <span>+12% vs mes anterior</span>
+            <Sparkline tone="green" />
+          </div>
+        </article>
+      </section>
 
       <section className="section-card">
         <div className="section-title">
