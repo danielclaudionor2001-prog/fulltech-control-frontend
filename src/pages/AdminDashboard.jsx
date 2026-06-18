@@ -9,7 +9,6 @@ import {
   ClipboardList,
   ListFilter,
   MapPinned,
-  MoreVertical,
   PieChart,
   RefreshCw,
   Search,
@@ -958,9 +957,9 @@ export default function AdminDashboard() {
                 Ajuste o perfil de quem já entrou no sistema pela primeira vez.
               </p>
             </div>
-            <button className="btn btn-secondary btn-compact" type="button">
+            <Link className="btn btn-secondary btn-compact" to="/admin/access">
               Ver todos
-            </button>
+            </Link>
           </div>
 
           <div className="mini-stats-inline">
@@ -1076,13 +1075,6 @@ export default function AdminDashboard() {
                       {busyUserId === user.id ? 'Salvando...' : 'Salvar perfil'}
                     </button>
 
-                    <button
-                      aria-label="Mais acoes"
-                      className="table-action-button"
-                      type="button"
-                    >
-                      <MoreVertical size={18} />
-                    </button>
                   </div>
                 </div>
               ))}

@@ -35,6 +35,8 @@
   --radius-lg: 24px;
   --radius-md: 16px;
   --radius-sm: 12px;
+  --sidebar-width: 280px;
+  --sidebar-collapsed-width: 96px;
 }
 
 * {
@@ -86,20 +88,19 @@ textarea {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   background: #f6f8fc;
   transition: grid-template-columns 0.24s ease;
 }
 
 .app-shell.sidebar-collapsed {
-  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr);
 }
 
 .app-sidebar {
-  position: fixed;
+  position: sticky;
   top: 0;
   left: 0;
-  width: 280px;
   z-index: 80;
   height: 100vh;
   display: flex;
@@ -133,6 +134,60 @@ textarea {
   object-fit: contain;
   filter: brightness(0) invert(1);
   transition: width 0.24s ease;
+}
+
+@media (max-width: 1440px) and (min-width: 1121px) {
+  :root {
+    --sidebar-width: 232px;
+    --sidebar-collapsed-width: 86px;
+  }
+
+  .app-sidebar {
+    padding: 1.25rem 0.75rem;
+  }
+
+  .sidebar-brand-logo {
+    width: 180px;
+  }
+
+  .sidebar-link {
+    min-height: 48px;
+    border-radius: 14px;
+    font-size: 0.92rem;
+  }
+
+  .app-topbar {
+    min-height: 68px;
+    gap: 0.8rem;
+    padding: 0 1rem;
+  }
+
+  .topbar-search {
+    min-height: 44px;
+  }
+
+  .main-content {
+    padding: 1.5rem;
+  }
+
+  .metric-card {
+    min-height: 174px;
+    padding: 1.1rem;
+  }
+
+  .metric-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: 15px;
+  }
+
+  .metric-card strong {
+    font-size: 2.2rem;
+  }
+
+  .metric-card small {
+    font-size: 0.82rem;
+  }
 }
 
 .sidebar-mobile-close {
@@ -227,7 +282,7 @@ textarea {
 }
 
 .app-shell.sidebar-collapsed .app-sidebar {
-  width: 96px;
+  width: var(--sidebar-collapsed-width);
   padding-left: 0.75rem;
   padding-right: 0.75rem;
 }
@@ -252,6 +307,7 @@ textarea {
 }
 
 .app-main-shell {
+  grid-column: 2;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -2669,13 +2725,22 @@ textarea {
 }
 
 .user-role-editor {
+  width: min(100%, 420px);
   align-self: flex-end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .user-role-select {
-  min-width: 220px;
+  min-width: 0;
+  width: 100%;
+}
+
+.user-role-editor .select-field {
+  min-width: 0;
+  width: 100%;
 }
 
 .nav-user {
@@ -4044,6 +4109,10 @@ textarea {
   .app-shell,
   .app-shell.sidebar-collapsed {
     grid-template-columns: 1fr;
+  }
+
+  .app-main-shell {
+    grid-column: 1;
   }
 
   .app-sidebar {

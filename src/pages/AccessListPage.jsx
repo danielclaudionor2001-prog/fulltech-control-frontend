@@ -304,11 +304,40 @@ export default function AccessListPage() {
     setPageError('');
 
     try {
-      await createAllowedEmail(allowedEmail.email, nextRole, getToken);
-      await fetchAllowedEmails();
+      const savedAllowedEmail = await createAllowedEmail(
+        allowedEmail.email,
+        nextRole,
+        getToken,
+      );
+
       if (allowedEmail.isCurrentUser) {
+        setAllowedEmails((currentAllowedEmails) => {
+          const hasCurrentEmail = currentAllowedEmails.some(
+            (currentAllowedEmail) =>
+              currentAllowedEmail.email === savedAllowedEmail.email,
+          );
+
+          if (!hasCurrentEmail) {
+            return [...currentAllowedEmails, savedAllowedEmail];
+          }
+
+          return currentAllowedEmails.map((currentAllowedEmail) =>
+            currentAllowedEmail.email === savedAllowedEmail.email
+              ? savedAllowedEmail
+              : currentAllowedEmail,
+          );
+        });
+        setRoleDrafts((previous) => ({
+          ...previous,
+          [allowedEmail.id]: savedAllowedEmail.role,
+          [savedAllowedEmail.id]: savedAllowedEmail.role,
+        }));
         await refreshCurrentUser();
+        showSuccess('Seu perfil foi atualizado com sucesso.');
+        return;
       }
+
+      await fetchAllowedEmails();
       showSuccess('Perfil atualizado com sucesso.');
     } catch (saveError) {
       const message =

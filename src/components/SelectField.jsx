@@ -54,11 +54,19 @@ export default function SelectField({
       const estimatedPanelHeight = Math.min(options.length * 52 + 12, 320);
       const spaceBelow = window.innerHeight - triggerRect.bottom - viewportPadding;
       const spaceAbove = triggerRect.top - viewportPadding;
+      const panelWidth = Math.min(
+        Math.max(triggerRect.width, 180),
+        window.innerWidth - viewportPadding * 2,
+      );
       const openUpward =
         spaceBelow < 180 && spaceAbove > spaceBelow;
       const maxHeight = Math.max(
         140,
         openUpward ? spaceAbove - defaultGap : spaceBelow - defaultGap,
+      );
+      const nextLeft = Math.min(
+        Math.max(viewportPadding, triggerRect.left),
+        window.innerWidth - viewportPadding - panelWidth,
       );
 
       const nextTop = openUpward
@@ -69,12 +77,12 @@ export default function SelectField({
         : triggerRect.bottom + defaultGap;
 
       setPanelStyle({
-        left: triggerRect.left,
+        left: nextLeft,
         maxHeight,
-        minWidth: triggerRect.width,
+        minWidth: panelWidth,
         position: 'fixed',
         top: nextTop,
-        width: triggerRect.width,
+        width: panelWidth,
         zIndex: 120,
       });
     };
