@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/clerk-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppAuth } from '../auth/useAppAuth';
-import { updateLocation } from '../services/api';
+import { updateLocation, updateLocationStatus } from '../services/api';
 import {
   buildLocationGuidance,
   isLocationPermissionMessage,
@@ -60,6 +60,9 @@ export default function SessionLocationPrompt() {
             : 'Não foi possível obter sua localização agora.';
 
         if (isLocationPermissionMessage(message)) {
+          void updateLocationStatus('DISABLED', getToken).catch((statusError) => {
+            console.error('Failed to update location status', statusError);
+          });
           setIsHelpOpen(true);
         } else if (isTechnicalLocationSyncMessage(message)) {
           console.warn('Location sync skipped during session prompt:', message);

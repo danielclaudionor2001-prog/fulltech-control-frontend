@@ -6,7 +6,6 @@ import {
   Bell,
   Building2,
   ChevronDown,
-  Headphones,
   Home,
   MapPin,
   Menu,
@@ -14,7 +13,6 @@ import {
   PanelLeftOpen,
   Plus,
   Search,
-  Settings,
   ShieldCheck,
   X,
 } from 'lucide-react';
@@ -25,6 +23,7 @@ export default function Layout() {
   const { appUser, clerkUser } = useAppAuth();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const isAdmin = appUser?.role === 'ADMIN';
   const isSupervisor = appUser?.role === 'SUPERVISOR';
   const operationalMapPath = isSupervisor ? '/supervisor/map' : '/tech/map';
@@ -41,23 +40,22 @@ export default function Layout() {
     clerkUser?.primaryEmailAddress?.emailAddress ||
     'Usuario';
   const avatarUrl = appUser?.imageUrl || clerkUser?.imageUrl || '';
-  const tabs = isAdmin
-    ? [
-        { icon: Home, label: 'Inicio', to: '/admin' },
-        { icon: Plus, label: 'Nova OS', to: '/admin/create' },
-        { icon: MapPin, label: 'Mapa', to: '/admin/map' },
-        { icon: Building2, label: 'Clientes', to: '/admin/customers' },
-        { icon: ShieldCheck, label: 'Acessos', to: '/admin/access' },
-        { disabled: true, icon: BarChart3, label: 'Relatorios', to: '/admin/reports' },
-        { disabled: true, icon: Settings, label: 'Configuracoes', to: '/admin/settings' },
-      ]
-    : [
-        { icon: Home, label: 'Inicio', to: '/tech' },
-        ...(isSupervisor
-          ? [{ icon: Plus, label: 'Nova OS', to: operationalCreatePath }]
-          : []),
-        { icon: MapPin, label: 'Mapa', to: operationalMapPath },
-      ];
+  const adminTabs = [
+    { icon: Home, label: 'Inicio', to: '/admin' },
+    { icon: Plus, label: 'Nova OS', to: '/admin/create' },
+    { icon: MapPin, label: 'Mapa', to: '/admin/map' },
+    { icon: Building2, label: 'Clientes', to: '/admin/customers' },
+    { icon: ShieldCheck, label: 'Acessos', to: '/admin/access' },
+    { icon: BarChart3, label: 'Relatorios', to: '/admin/reports' },
+  ];
+  const operationalTabs = [
+    { icon: Home, label: 'Inicio', to: '/tech' },
+    ...(isSupervisor
+      ? [{ icon: Plus, label: 'Nova OS', to: operationalCreatePath }]
+      : []),
+    { icon: MapPin, label: 'Mapa', to: operationalMapPath },
+  ];
+  const tabs = isAdmin ? adminTabs : operationalTabs;
 
   const isTabActive = (to) => {
     if (to === '/admin' || to === '/tech') {
@@ -78,6 +76,31 @@ export default function Layout() {
     .toUpperCase();
 
   const closeMobileSidebar = () => setIsMobileSidebarOpen(false);
+  const notifications = isAdmin
+    ? [
+        {
+          description: 'Acompanhe as ordens que ainda nao receberam inicio.',
+          title: 'OS pendentes',
+          tone: 'warning',
+        },
+        {
+          description: 'Verifique os atendimentos em campo e suas localizacoes.',
+          title: 'Equipe em atendimento',
+          tone: 'info',
+        },
+        {
+          description: 'Relatorios podem ser filtrados e exportados em Excel.',
+          title: 'Relatorios disponiveis',
+          tone: 'success',
+        },
+      ]
+    : [
+        {
+          description: 'Confira as ordens atribuidas ao seu perfil.',
+          title: 'Minhas OS',
+          tone: 'info',
+        },
+      ];
 
   return (
     <div
@@ -149,17 +172,6 @@ export default function Layout() {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="support-card">
-            <div className="support-icon">
-              <Headphones size={20} />
-            </div>
-            <div>
-              <strong>Central de suporte</strong>
-              <span>0800 123 4567</span>
-              <small>Seg a Sex, 8h as 18h</small>
-            </div>
-          </div>
-
           <button
             className="sidebar-collapse-button"
             onClick={() => setIsSidebarCollapsed((current) => !current)}
@@ -195,14 +207,42 @@ export default function Layout() {
           </div>
 
           <div className="topbar-user-area">
-            <button
-              aria-label="Notificacoes"
-              className="topbar-icon-button notification-button"
-              type="button"
-            >
-              <Bell size={20} />
-              <span>3</span>
-            </button>
+            <div className="notification-wrapper">
+              <button
+                aria-expanded={isNotificationsOpen}
+                aria-label="Notificacoes"
+                className="topbar-icon-button notification-button"
+                onClick={() => setIsNotificationsOpen((current) => !current)}
+                type="button"
+              >
+                <Bell size={20} />
+                <span>{notifications.length}</span>
+              </button>
+
+              {isNotificationsOpen ? (
+                <div className="notification-panel" role="dialog">
+                  <div className="notification-panel-header">
+                    <strong>Notificacoes</strong>
+                    <small>Atualizacoes rapidas da operacao</small>
+                  </div>
+
+                  <div className="notification-list">
+                    {notifications.map((notification) => (
+                      <div
+                        className={`notification-item notification-${notification.tone}`}
+                        key={notification.title}
+                      >
+                        <span className="notification-dot" />
+                        <div>
+                          <strong>{notification.title}</strong>
+                          <p>{notification.description}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
             <div className="topbar-user-card">
               <div className="topbar-avatar" aria-hidden="true">

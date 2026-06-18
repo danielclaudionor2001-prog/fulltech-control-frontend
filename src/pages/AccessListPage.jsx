@@ -1,5 +1,15 @@
 import { useAuth } from '@clerk/clerk-react';
-import { MailPlus, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import {
+  Clock3,
+  MailPlus,
+  MapPin,
+  Navigation,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Wifi,
+  WifiOff,
+} from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppAuth } from '../auth/useAppAuth';
 import ButtonSpinner from '../components/ButtonSpinner';
@@ -10,6 +20,7 @@ import { useToast } from '../components/ToastContext';
 import {
   createAllowedEmail,
   getAccessList,
+  getLocationStatuses,
   removeAllowedEmail,
 } from '../services/api';
 
@@ -36,11 +47,64 @@ const formatDateTime = (dateLike) => {
   return new Date(dateLike).toLocaleString('pt-BR');
 };
 
+const getLocationStatusMeta = (status) => {
+  if (status === 'ACTIVE') {
+    return {
+      className: 'status-done',
+      icon: Wifi,
+      label: 'Ativa',
+      tone: 'active',
+    };
+  }
+
+  if (status === 'DISABLED') {
+    return {
+      className: 'status-canceled',
+      icon: WifiOff,
+      label: 'Desligada',
+      tone: 'disabled',
+    };
+  }
+
+  if (status === 'STALE') {
+    return {
+      className: 'status-warning',
+      icon: Clock3,
+      label: 'Sem sinal',
+      tone: 'stale',
+    };
+  }
+
+  if (status === 'UNAVAILABLE') {
+    return {
+      className: 'status-canceled',
+      icon: WifiOff,
+      label: 'Indisponivel',
+      tone: 'unavailable',
+    };
+  }
+
+  return {
+    className: 'status-pending',
+    icon: MapPin,
+    label: 'Nunca enviada',
+    tone: 'unknown',
+  };
+};
+
+const getLocationUserName = (row) =>
+  row.user?.name || row.user?.email || row.user?.clerkUserId || 'Responsavel';
+
+const getLocationRoleLabel = (role) =>
+  role === 'SUPERVISOR' ? 'Supervisor' : 'Tecnico';
+
 export default function AccessListPage() {
   const { getToken } = useAuth();
-  const { appUser } = useAppAuth();
+  const { appUser, refreshCurrentUser } = useAppAuth();
   const { showError, showSuccess, showWarning } = useToast();
+  const [activeTab, setActiveTab] = useState('emails');
   const [allowedEmails, setAllowedEmails] = useState([]);
+  const [locationStatuses, setLocationStatuses] = useState([]);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('TECH');
   const [roleDrafts, setRoleDrafts] = useState({});
@@ -94,13 +158,68 @@ export default function AccessListPage() {
     ];
   }, [appUser, sortedAllowedEmails]);
 
+  const locationSummary = useMemo(
+    () =>
+      locationStatuses.reduce(
+        (summary, row) => {
+          if (row.status === 'ACTIVE') {
+            summary.active += 1;
+          } else if (row.status === 'DISABLED') {
+            summary.disabled += 1;
+          } else if (row.status === 'STALE') {
+            summary.stale += 1;
+          } else {
+            summary.unknown += 1;
+          }
+
+          summary.total += 1;
+          return summary;
+        },
+        {
+          active: 0,
+          disabled: 0,
+          stale: 0,
+          total: 0,
+          unknown: 0,
+        },
+      ),
+    [locationStatuses],
+  );
+
+  const sortedLocationStatuses = useMemo(
+    () =>
+      [...locationStatuses].sort((left, right) => {
+        const priority = {
+          DISABLED: 0,
+          STALE: 1,
+          UNAVAILABLE: 2,
+          UNKNOWN: 3,
+          ACTIVE: 4,
+        };
+        const priorityDiff =
+          (priority[left.status] ?? 5) - (priority[right.status] ?? 5);
+
+        if (priorityDiff !== 0) {
+          return priorityDiff;
+        }
+
+        return getLocationUserName(left).localeCompare(getLocationUserName(right));
+      }),
+    [locationStatuses],
+  );
+
   const fetchAllowedEmails = useCallback(async () => {
     setLoading(true);
     setPageError('');
 
     try {
-      const data = await getAccessList(getToken);
+      const [data, locationData] = await Promise.all([
+        getAccessList(getToken),
+        getLocationStatuses(getToken),
+      ]);
+
       setAllowedEmails(data);
+      setLocationStatuses(Array.isArray(locationData) ? locationData : []);
       setRoleDrafts(
         Object.fromEntries(data.map((allowedEmail) => [allowedEmail.id, allowedEmail.role])),
       );
@@ -187,6 +306,9 @@ export default function AccessListPage() {
     try {
       await createAllowedEmail(allowedEmail.email, nextRole, getToken);
       await fetchAllowedEmails();
+      if (allowedEmail.isCurrentUser) {
+        await refreshCurrentUser();
+      }
       showSuccess('Perfil atualizado com sucesso.');
     } catch (saveError) {
       const message =
@@ -265,6 +387,28 @@ export default function AccessListPage() {
 
       {pageError ? <div className="inline-error">{pageError}</div> : null}
 
+      <div className="access-tabs" role="tablist" aria-label="Areas de acesso">
+        <button
+          className={`access-tab ${activeTab === 'emails' ? 'active' : ''}`.trim()}
+          onClick={() => setActiveTab('emails')}
+          role="tab"
+          type="button"
+        >
+          <MailPlus size={18} />
+          E-mails
+        </button>
+        <button
+          className={`access-tab ${activeTab === 'locations' ? 'active' : ''}`.trim()}
+          onClick={() => setActiveTab('locations')}
+          role="tab"
+          type="button"
+        >
+          <Navigation size={18} />
+          Localizacao
+        </button>
+      </div>
+
+      {activeTab === 'emails' ? (
       <section className="section-card access-table-card">
         <div className="section-title">
           <MailPlus size={18} />
@@ -344,7 +488,8 @@ export default function AccessListPage() {
                     const isBusy = busyAllowedEmailId === allowedEmail.id;
                     const isCurrentUser = Boolean(allowedEmail.isCurrentUser);
                     const isProtected = Boolean(allowedEmail.isProtected);
-                    const disableRowActions = isBusy || isCurrentUser || isProtected;
+                    const disableRoleChange = isBusy || isProtected;
+                    const disableDelete = isBusy || isCurrentUser || isProtected;
 
                     return (
                       <tr key={allowedEmail.id}>
@@ -364,7 +509,7 @@ export default function AccessListPage() {
                           <SelectField
                             buttonClassName="table-select-trigger"
                             className="table-select"
-                            disabled={disableRowActions}
+                            disabled={disableRoleChange}
                             onChange={(nextRole) =>
                               setRoleDrafts((previous) => ({
                                 ...previous,
@@ -383,7 +528,6 @@ export default function AccessListPage() {
                               className="btn btn-secondary btn-compact"
                               disabled={
                                 isBusy ||
-                                isCurrentUser ||
                                 isProtected ||
                                 currentDraftRole === allowedEmail.role
                               }
@@ -398,7 +542,7 @@ export default function AccessListPage() {
 
                             <button
                               className="btn btn-outline btn-compact"
-                              disabled={disableRowActions}
+                              disabled={disableDelete}
                               onClick={() => setPendingDeleteAllowedEmail(allowedEmail)}
                               type="button"
                             >
@@ -416,6 +560,132 @@ export default function AccessListPage() {
           </div>
         )}
       </section>
+      ) : (
+      <section className="section-card location-status-card">
+        <div className="section-title">
+          <Navigation size={18} />
+          <div>
+            <h3>Status de localizacao</h3>
+            <p className="section-subtitle">
+              Acompanhe o sinal de localizacao dos tecnicos e supervisores em
+              campo.
+            </p>
+          </div>
+        </div>
+
+        <div className="location-status-summary">
+          <article className="location-summary-card location-summary-active">
+            <Wifi size={20} />
+            <div>
+              <span>Ativos</span>
+              <strong>{loading ? '...' : locationSummary.active}</strong>
+            </div>
+          </article>
+          <article className="location-summary-card location-summary-disabled">
+            <WifiOff size={20} />
+            <div>
+              <span>Desligados</span>
+              <strong>{loading ? '...' : locationSummary.disabled}</strong>
+            </div>
+          </article>
+          <article className="location-summary-card location-summary-stale">
+            <Clock3 size={20} />
+            <div>
+              <span>Sem sinal</span>
+              <strong>{loading ? '...' : locationSummary.stale}</strong>
+            </div>
+          </article>
+          <article className="location-summary-card location-summary-total">
+            <MapPin size={20} />
+            <div>
+              <span>Monitorados</span>
+              <strong>{loading ? '...' : locationSummary.total}</strong>
+            </div>
+          </article>
+        </div>
+
+        {isInitialLoading ? (
+          <div className="location-status-list">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div className="location-status-row" key={`location-skeleton-${index}`}>
+                <div className="skeleton-card-stack">
+                  <SkeletonBlock className="skeleton-line-short" />
+                  <SkeletonBlock className="skeleton-line" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : sortedLocationStatuses.length === 0 ? (
+          <div className="empty-state">
+            <MapPin size={18} />
+            <span>Nenhum tecnico ou supervisor encontrado para monitoramento.</span>
+          </div>
+        ) : (
+          <div className="location-status-list">
+            {sortedLocationStatuses.map((row) => {
+              const meta = getLocationStatusMeta(row.status);
+              const StatusIcon = meta.icon;
+              const locationDetail =
+                row.status === 'DISABLED'
+                  ? `Desligada em: ${formatDateTime(row.disabledAt)}`
+                  : row.status === 'STALE'
+                    ? `Sem sinal desde: ${formatDateTime(row.staleSince)}`
+                    : `Ultimo sinal: ${formatDateTime(row.lastLocationAt)}`;
+
+              return (
+                <article
+                  className={`location-status-row location-status-${meta.tone}`}
+                  key={row.user.id}
+                >
+                  <div className="location-user-copy">
+                    <span className="user-avatar">
+                      {row.user.imageUrl ? (
+                        <img alt="" src={row.user.imageUrl} />
+                      ) : (
+                        getLocationUserName(row).slice(0, 2).toUpperCase()
+                      )}
+                    </span>
+                    <div>
+                      <strong>{getLocationUserName(row)}</strong>
+                      <small>
+                        {(row.user.email || 'Sem e-mail')} •{' '}
+                        {getLocationRoleLabel(row.user.role)}
+                      </small>
+                    </div>
+                  </div>
+
+                  <div className="location-signal-copy">
+                    <span className={`status-badge ${meta.className}`}>
+                      <StatusIcon size={15} />
+                      {meta.label}
+                    </span>
+                    <small>{locationDetail}</small>
+                    <small>
+                      {row.lastLocationAddress ||
+                        (row.lastLocationLat && row.lastLocationLng
+                          ? `${Number(row.lastLocationLat).toFixed(5)}, ${Number(
+                              row.lastLocationLng,
+                            ).toFixed(5)}`
+                          : 'Endereco ainda nao informado')}
+                    </small>
+                  </div>
+
+                  <div className="location-order-copy">
+                    <span>OS em andamento</span>
+                    <strong>
+                      {row.serviceOrder
+                        ? row.serviceOrder.identifier || row.serviceOrder.id
+                        : 'Nenhuma'}
+                    </strong>
+                    <small>{row.serviceOrder?.customer || 'Sem atendimento ativo'}</small>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+      )}
 
       <ModalShell
         description="Se o e-mail já existir na lista, salvar novamente atualiza o perfil."

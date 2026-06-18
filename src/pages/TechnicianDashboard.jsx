@@ -6,7 +6,7 @@ import {
   RefreshCw,
   Search,
 } from 'lucide-react';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppAuth } from '../auth/useAppAuth';
 import ButtonSpinner from '../components/ButtonSpinner';
 import LocationPermissionModal from '../components/LocationPermissionModal';
@@ -26,6 +26,7 @@ import {
   getServiceOrders,
   startServiceOrder,
   updateLocation,
+  updateLocationStatus,
   updateServiceOrder,
 } from '../services/api';
 import {
@@ -45,6 +46,11 @@ const initialFilters = {
   search: '',
   status: '',
 };
+
+const LOCATION_HEARTBEAT_MS = 60000;
+
+const getSignalStatusFromGeolocationError = (error) =>
+  error?.code === 1 ? 'DISABLED' : 'UNAVAILABLE';
 
 export default function TechnicianDashboard() {
   const { getToken } = useAuth();
@@ -67,6 +73,7 @@ export default function TechnicianDashboard() {
   const [isLocationPendingOpen, setIsLocationPendingOpen] = useState(false);
   const [proximityAlertMessage, setProximityAlertMessage] = useState('');
   const [pendingStartOrderId, setPendingStartOrderId] = useState('');
+  const lastLocationSyncRef = useRef(0);
 
   const guidance = useMemo(() => buildLocationGuidance(), []);
   const isInitialLoading = loading && orders.length === 0;
@@ -142,30 +149,87 @@ export default function TechnicianDashboard() {
   }, []);
 
   useEffect(() => {
-    if (!appUser || locationState !== 'granted' || !navigator.geolocation) {
+    if (!appUser) {
       return undefined;
     }
 
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        setLocationError('');
-        void updateLocation(
-          position.coords.latitude,
-          position.coords.longitude,
-          getToken,
-        ).catch((error) => {
-          console.error('Failed to send location', error);
-        });
-      },
-      () => {
-        setLocationError(
-          'Não foi possível atualizar sua localização em segundo plano.',
-        );
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 },
-    );
+    if (!navigator.geolocation) {
+      void updateLocationStatus('UNAVAILABLE', getToken).catch((error) => {
+        console.error('Failed to update location status', error);
+      });
+      return undefined;
+    }
 
-    return () => navigator.geolocation.clearWatch(watchId);
+    if (locationState === 'denied') {
+      void updateLocationStatus('DISABLED', getToken).catch((error) => {
+        console.error('Failed to update location status', error);
+      });
+      return undefined;
+    }
+
+    if (locationState !== 'granted') {
+      return undefined;
+    }
+
+    let isStopped = false;
+
+    const syncPosition = (position) => {
+      if (isStopped) {
+        return;
+      }
+
+      setLocationError('');
+      lastLocationSyncRef.current = Date.now();
+      void updateLocation(
+        position.coords.latitude,
+        position.coords.longitude,
+        getToken,
+      ).catch((error) => {
+        console.error('Failed to send location', error);
+      });
+    };
+
+    const syncFailure = (error) => {
+      if (isStopped) {
+        return;
+      }
+
+      const status = getSignalStatusFromGeolocationError(error);
+      const message =
+        status === 'DISABLED'
+          ? 'A localizacao foi desligada ou bloqueada no navegador.'
+          : 'Nao foi possivel atualizar sua localizacao em segundo plano.';
+
+      setLocationError(message);
+      void updateLocationStatus(status, getToken).catch((statusError) => {
+        console.error('Failed to update location status', statusError);
+      });
+    };
+
+    const requestCurrentPosition = () => {
+      navigator.geolocation.getCurrentPosition(syncPosition, syncFailure, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 8000,
+      });
+    };
+
+    requestCurrentPosition();
+
+    const watchId = navigator.geolocation.watchPosition(
+      syncPosition,
+      syncFailure,
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 },
+    );
+    const heartbeatId = window.setInterval(() => {
+      requestCurrentPosition();
+    }, LOCATION_HEARTBEAT_MS);
+
+    return () => {
+      isStopped = true;
+      navigator.geolocation.clearWatch(watchId);
+      window.clearInterval(heartbeatId);
+    };
   }, [appUser, getToken, locationState]);
 
   const availableOrders = useMemo(() => {
@@ -241,6 +305,9 @@ export default function TechnicianDashboard() {
       setLocationError(message);
 
       if (isLocationPermissionMessage(message)) {
+        void updateLocationStatus('DISABLED', getToken).catch((statusError) => {
+          console.error('Failed to update location status', statusError);
+        });
         setIsLocationHelpOpen(true);
       } else if (!isTechnicalLocationSyncMessage(message)) {
         showWarning(message);
@@ -282,6 +349,9 @@ export default function TechnicianDashboard() {
         setLocationError('');
         setProximityAlertMessage(message);
       } else if (isLocationPermissionMessage(message)) {
+        void updateLocationStatus('DISABLED', getToken).catch((statusError) => {
+          console.error('Failed to update location status', statusError);
+        });
         setLocationError(message);
         setIsLocationHelpOpen(true);
       } else {

@@ -198,3 +198,13 @@ export const updateLocation = (lat, lng, getToken) =>
   });
 
 export const getLocations = (getToken) => request('/locations', { getToken });
+
+export const getLocationStatuses = (getToken) =>
+  request('/locations/status', { getToken });
+
+export const updateLocationStatus = (status, getToken) =>
+  request('/locations/status', {
+    body: JSON.stringify({ status }),
+    getToken,
+    method: 'POST',
+  });

@@ -51,6 +51,7 @@ import {
   ORDER_STATUS_FILTER_OPTIONS,
   sortServiceOrdersByLatest,
 } from '../utils/serviceOrdersFilter';
+import { useAppAuth } from '../auth/useAppAuth';
 
 const ROLE_OPTIONS = [
   {
@@ -214,6 +215,7 @@ const getLocalDateKey = (dateLike = new Date()) => {
 
 export default function AdminDashboard() {
   const { getToken } = useAuth();
+  const { appUser, refreshCurrentUser } = useAppAuth();
   const { showError, showSuccess, showWarning } = useToast();
   const [customers, setCustomers] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -484,12 +486,31 @@ export default function AdminDashboard() {
     setBusyUserId(id);
 
     try {
-      await updateUserRole(id, role, getToken);
+      const updatedUser = await updateUserRole(id, role, getToken);
+
+      setUsers((currentUsers) =>
+        currentUsers.map((user) => (user.id === id ? updatedUser : user)),
+      );
+      setRoleDrafts((previous) => ({
+        ...previous,
+        [id]: updatedUser.role,
+      }));
+
+      if (appUser?.id === id) {
+        await refreshCurrentUser();
+        showSuccess('Seu perfil foi atualizado com sucesso.');
+        return;
+      }
+
       await fetchDashboard();
       showSuccess('Perfil atualizado com sucesso.');
     } catch (error) {
       console.error('Failed to update user role', error);
-      showError('Não foi possível atualizar o perfil agora.');
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Nao foi possivel atualizar o perfil agora.';
+      showError(message);
     } finally {
       setBusyUserId('');
     }
@@ -999,31 +1020,33 @@ export default function AdminDashboard() {
             <div className="user-list">
               {users.map((user, index) => (
                 <div className="user-item" key={user.id}>
-                  <div className="user-identity">
-                    <span className="user-avatar">
-                      {user.imageUrl ? (
-                        <img alt="" src={user.imageUrl} />
-                      ) : (
-                        getUserInitials(user)
-                      )}
-                    </span>
-                    <div>
-                    <strong>{user.name || user.email || user.clerkUserId}</strong>
-                    <p>
-                      {(user.email || 'Sem e-mail')} • {getRoleLabel(user.role)}
-                    </p>
+                  <div className="user-card-top">
+                    <div className="user-identity">
+                      <span className="user-avatar">
+                        {user.imageUrl ? (
+                          <img alt="" src={user.imageUrl} />
+                        ) : (
+                          getUserInitials(user)
+                        )}
+                      </span>
+                      <div>
+                        <strong>{user.name || user.email || user.clerkUserId}</strong>
+                        <p>
+                          {(user.email || 'Sem e-mail')} • {getRoleLabel(user.role)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="user-presence">
-                    <span
-                      className={`status-badge ${
-                        user.isActive === false ? 'status-canceled' : 'status-done'
-                      }`.trim()}
-                    >
-                      {user.isActive === false ? 'Inativo' : 'Ativo'}
-                    </span>
-                    <small>Ultimo acesso: {formatLastAccess(user, index)}</small>
+                    <div className="user-presence">
+                      <span
+                        className={`status-badge ${
+                          user.isActive === false ? 'status-canceled' : 'status-done'
+                        }`.trim()}
+                      >
+                        {user.isActive === false ? 'Inativo' : 'Ativo'}
+                      </span>
+                      <small>Ultimo acesso: {formatLastAccess(user, index)}</small>
+                    </div>
                   </div>
 
                   <div className="user-role-editor">

@@ -8,6 +8,7 @@ import AccessListPage from './pages/AccessListPage';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import CustomersPage from './pages/CustomersPage';
+import ReportsPage from './pages/ReportsPage';
 import SignUpPage from './pages/SignUpPage';
 import TechnicianDashboard from './pages/TechnicianDashboard';
 import OSForm from './pages/OSForm';
@@ -83,6 +84,14 @@ function App() {
             element={(
               <RequireRole allowedRoles={['ADMIN']}>
                 <AccessListPage />
+              </RequireRole>
+            )}
+          />
+          <Route
+            path="/admin/reports"
+            element={(
+              <RequireRole allowedRoles={['ADMIN']}>
+                <ReportsPage />
               </RequireRole>
             )}
           />
