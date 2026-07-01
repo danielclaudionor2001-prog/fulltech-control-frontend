@@ -191,8 +191,11 @@ export const deleteServiceOrder = (id, getToken) =>
   });
 
 export const startServiceOrder = async (id, lat, lng, getToken) => {
+  const payload =
+    typeof lat === 'number' && typeof lng === 'number' ? { lat, lng } : {};
+
   const updated = await request(`/service-orders/${id}/start`, {
-    body: JSON.stringify({ lat, lng }),
+    body: JSON.stringify(payload),
     getToken,
     method: 'POST',
   });

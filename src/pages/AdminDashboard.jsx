@@ -627,25 +627,11 @@ export default function AdminDashboard() {
   const handleStartOrderWithValidation = async (id) => {
     setBusyOrderId(id);
     setBusyOrderAction('progress');
-    setPendingStartOrderId(id);
+    setPendingStartOrderId('');
     setProximityAlertMessage('');
-    setIsLocationPendingOpen(true);
 
     try {
-      const position = await requestBrowserLocation({
-        debugReporter: (entry) =>
-          sendLocationDebugLog(entry, getToken).catch((logError) => {
-            console.warn('Failed to persist location debug log:', logError);
-          }),
-        debugSource: `admin-start-order:${id}`,
-      });
-
-      await startServiceOrder(
-        id,
-        position.coords.latitude,
-        position.coords.longitude,
-        getToken,
-      );
+      await startServiceOrder(id, undefined, undefined, getToken);
 
       await fetchDashboard();
       showSuccess('Atendimento iniciado com sucesso.');
@@ -654,7 +640,7 @@ export default function AdminDashboard() {
       const message =
         error instanceof Error
           ? error.message
-          : 'Nao foi possivel validar sua localizacao para iniciar a OS.';
+          : 'Nao foi possivel iniciar a OS.';
 
       if (isDistanceValidationMessage(message)) {
         setProximityAlertMessage(message);
@@ -664,7 +650,6 @@ export default function AdminDashboard() {
         showWarning(message);
       }
     } finally {
-      setIsLocationPendingOpen(false);
       setBusyOrderId('');
       setBusyOrderAction('');
     }
@@ -1410,14 +1395,14 @@ export default function AdminDashboard() {
       ) : null}
 
       <LocationRequestPendingModal
-        description="Aceite a solicitacao de localizacao do navegador para validarmos sua presenca perto do cliente."
+        description="Aceite a solicitacao de localizacao do navegador para atualizar sua posicao no mapa da equipe."
         onClose={() => setIsLocationPendingOpen(false)}
         open={isLocationPendingOpen}
-        title="Validando sua localizacao"
+        title="Atualizando sua localizacao"
       />
 
       <LocationPermissionModal
-        description="Para iniciar o atendimento, o navegador precisa informar sua localizacao atual."
+        description="A localizacao ajuda a manter o mapa da equipe atualizado, mas nao bloqueia o inicio da OS."
         guidance={guidance}
         onClose={() => setIsLocationHelpOpen(false)}
         onRetry={() => {

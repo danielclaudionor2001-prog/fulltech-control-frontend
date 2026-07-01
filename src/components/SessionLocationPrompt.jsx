@@ -134,7 +134,7 @@ export default function SessionLocationPrompt() {
       />
 
       <LocationPermissionModal
-        description="O sistema usa sua localização para validar atendimentos, atualizar o mapa da equipe e registrar sua posição no início do trabalho."
+        description="O sistema usa sua localização para atualizar o mapa da equipe e acompanhar o deslocamento em campo."
         guidance={guidance}
         onClose={() => setIsHelpOpen(false)}
         onRetry={() => {

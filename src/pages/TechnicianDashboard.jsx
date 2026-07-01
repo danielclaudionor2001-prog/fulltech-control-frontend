@@ -329,25 +329,10 @@ export default function TechnicianDashboard() {
     setBusyOrderAction('start');
     setLocationError('');
     setProximityAlertMessage('');
-    setPendingStartOrderId(id);
-    setIsLocationPendingOpen(true);
+    setPendingStartOrderId('');
 
     try {
-      const position = await requestBrowserLocation({
-        debugReporter: (entry) =>
-          sendLocationDebugLog(entry, getToken).catch((logError) => {
-            console.warn('Failed to persist location debug log:', logError);
-          }),
-        debugSource: `tech-start-order:${id}`,
-      });
-      setLocationState('granted');
-
-      await startServiceOrder(
-        id,
-        position.coords.latitude,
-        position.coords.longitude,
-        getToken,
-      );
+      await startServiceOrder(id, undefined, undefined, getToken);
 
       await fetchOrders();
       showSuccess('Atendimento iniciado com sucesso.');
@@ -356,7 +341,7 @@ export default function TechnicianDashboard() {
       const message =
         error instanceof Error
           ? error.message
-          : 'Você precisa liberar a localização para iniciar o atendimento.';
+          : 'Nao foi possivel iniciar o atendimento.';
 
       if (isDistanceValidationMessage(message)) {
         setLocationError('');
@@ -372,7 +357,6 @@ export default function TechnicianDashboard() {
         showWarning(message);
       }
     } finally {
-      setIsLocationPendingOpen(false);
       setBusyOrderId('');
       setBusyOrderAction('');
     }
@@ -459,7 +443,7 @@ export default function TechnicianDashboard() {
       ? 'Localização liberada'
       : locationState === 'denied'
         ? 'Permissão negada'
-        : 'Localização exigida';
+        : 'Localização pendente';
 
   return (
     <div className="dashboard-stack">
@@ -469,8 +453,8 @@ export default function TechnicianDashboard() {
             <span className="page-eyebrow">Atendimento em campo</span>
             <h1 className="page-title">{pageTitle}</h1>
             <p className="page-subtitle">
-              O navegador precisa informar sua localização no login e novamente
-              ao assumir uma OS para validar a proximidade do atendimento.
+              O sistema acompanha sua localização para atualizar o mapa da
+              equipe, mas a OS pode ser iniciada sem bloqueio por localização.
             </p>
           </div>
 
@@ -722,8 +706,7 @@ export default function TechnicianDashboard() {
             <div>
               <h3>OS disponíveis</h3>
               <p className="section-subtitle">
-                Ordens livres para assumir assim que a localização estiver
-                liberada.
+                Ordens livres para assumir sem bloqueio por localização.
               </p>
             </div>
           </div>
@@ -832,14 +815,14 @@ export default function TechnicianDashboard() {
       ) : null}
 
       <LocationRequestPendingModal
-        description="Aceite a solicitação de localização do navegador para validarmos sua presença perto do cliente."
+        description="Aceite a solicitação de localização do navegador para atualizar sua posição no mapa da equipe."
         onClose={() => setIsLocationPendingOpen(false)}
         open={isLocationPendingOpen}
-        title="Validando sua localização"
+        title="Atualizando sua localização"
       />
 
       <LocationPermissionModal
-        description="Para iniciar o atendimento, o navegador precisa informar sua localização atual."
+        description="A localização ajuda a manter o mapa da equipe atualizado, mas não bloqueia o início da OS."
         guidance={guidance}
         onClose={() => setIsLocationHelpOpen(false)}
         onRetry={() => {
