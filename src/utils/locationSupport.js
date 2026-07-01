@@ -1,4 +1,6 @@
 const DEFAULT_LOCATION_TIMEOUT = 12000;
+const RECENT_LOCATION_FALLBACK_MAX_AGE = 60000;
+const RECENT_LOCATION_FALLBACK_TIMEOUT = 5000;
 
 const IOS_STEPS = [
   'Toque no cadeado ou no ícone ao lado do endereço do site.',
@@ -135,12 +137,15 @@ export function isLocationPermissionMessage(message) {
   const normalized = normalizeLocationMessage(message);
 
   return (
-    normalized.includes('localiza') ||
-    normalized.includes('geolocal') ||
-    normalized.includes('gps') ||
-    normalized.includes('navegador') ||
     normalized.includes('permiss') ||
     normalized.includes('bloquead') ||
+    normalized.includes('blocked') ||
+    normalized.includes('denied') ||
+    normalized.includes('liber') ||
+    normalized.includes('not allowed') ||
+    normalized.includes('notallowed') ||
+    normalized.includes('only secure origins') ||
+    normalized.includes('secure origin') ||
     normalized.includes('suporte para localiza')
   );
 }
@@ -192,7 +197,21 @@ function normalizeGeolocationError(error) {
   return error.message || 'Não foi possível obter sua localização agora.';
 }
 
-export function requestBrowserLocation(options = {}) {
+function isRetryableGeolocationError(error) {
+  return error?.code === 2 || error?.code === 3;
+}
+
+function createGeolocationError(error) {
+  const normalizedError = new Error(normalizeGeolocationError(error));
+
+  if (error?.code) {
+    normalizedError.code = error.code;
+  }
+
+  return normalizedError;
+}
+
+function getBrowserPosition(options) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
       reject(
@@ -203,15 +222,41 @@ export function requestBrowserLocation(options = {}) {
 
     navigator.geolocation.getCurrentPosition(
       resolve,
-      (error) => {
-        reject(new Error(normalizeGeolocationError(error)));
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: DEFAULT_LOCATION_TIMEOUT,
-        ...options,
-      },
+      reject,
+      options,
     );
   });
+}
+
+export async function requestBrowserLocation(options = {}) {
+  const { allowRecentFallback = true, ...positionOptions } = options;
+  const requestOptions = {
+    enableHighAccuracy: true,
+    maximumAge: 0,
+    timeout: DEFAULT_LOCATION_TIMEOUT,
+    ...positionOptions,
+  };
+
+  try {
+    return await getBrowserPosition(requestOptions);
+  } catch (error) {
+    const canUseRecentFallback =
+      allowRecentFallback &&
+      requestOptions.maximumAge === 0 &&
+      isRetryableGeolocationError(error);
+
+    if (canUseRecentFallback) {
+      try {
+        return await getBrowserPosition({
+          ...requestOptions,
+          maximumAge: RECENT_LOCATION_FALLBACK_MAX_AGE,
+          timeout: RECENT_LOCATION_FALLBACK_TIMEOUT,
+        });
+      } catch (fallbackError) {
+        throw createGeolocationError(fallbackError);
+      }
+    }
+
+    throw createGeolocationError(error);
+  }
 }

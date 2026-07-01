@@ -87,20 +87,14 @@ textarea {
 
 .app-shell {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   background: #f6f8fc;
-  transition: grid-template-columns 0.24s ease;
-}
-
-.app-shell.sidebar-collapsed {
-  grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr);
 }
 
 .app-sidebar {
-  position: sticky;
+  position: fixed;
   top: 0;
   left: 0;
+  width: var(--sidebar-width);
   z-index: 80;
   height: 100vh;
   display: flex;
@@ -307,10 +301,16 @@ textarea {
 }
 
 .app-main-shell {
-  grid-column: 2;
+  margin-left: var(--sidebar-width);
   min-width: 0;
   display: flex;
   flex-direction: column;
+  min-height: 100vh;
+  transition: margin-left 0.24s ease;
+}
+
+.app-shell.sidebar-collapsed .app-main-shell {
+  margin-left: var(--sidebar-collapsed-width);
 }
 
 .app-topbar {
@@ -4108,11 +4108,12 @@ textarea {
 
   .app-shell,
   .app-shell.sidebar-collapsed {
-    grid-template-columns: 1fr;
+    min-height: 100vh;
   }
 
-  .app-main-shell {
-    grid-column: 1;
+  .app-main-shell,
+  .app-shell.sidebar-collapsed .app-main-shell {
+    margin-left: 0;
   }
 
   .app-sidebar {
