@@ -131,6 +131,9 @@ export default function AccessListPage() {
   const [selectedLogUser, setSelectedLogUser] = useState(null);
   const [activityLogs, setActivityLogs] = useState([]);
   const [loadingActivityLogs, setLoadingActivityLogs] = useState(false);
+  const [refreshingActivityLogs, setRefreshingActivityLogs] = useState(false);
+  const [lastActivityLogFetchAt, setLastActivityLogFetchAt] = useState(null);
+  const [activityLogError, setActivityLogError] = useState('');
   const [pageError, setPageError] = useState('');
 
   const isInitialLoading = loading && allowedEmails.length === 0;
@@ -282,9 +285,53 @@ export default function AccessListPage() {
   const closeActivityLogsModal = () => {
     setSelectedLogUser(null);
     setActivityLogs([]);
+    setActivityLogError('');
+    setLastActivityLogFetchAt(null);
+    setLoadingActivityLogs(false);
+    setRefreshingActivityLogs(false);
   };
 
-  const openUserLogs = async (user) => {
+  const loadUserLogs = useCallback(
+    async (user, { initial = false } = {}) => {
+      if (!user?.id) {
+        return;
+      }
+
+      if (initial) {
+        setLoadingActivityLogs(true);
+      } else {
+        setRefreshingActivityLogs(true);
+      }
+
+      setActivityLogError('');
+
+      try {
+        const logs = await getUserActivityLogs(user.id, getToken);
+        setActivityLogs(Array.isArray(logs) ? logs : []);
+        setLastActivityLogFetchAt(new Date());
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Nao foi possivel carregar os logs do usuario.';
+
+        setActivityLogError(message);
+
+        if (initial) {
+          showError(message);
+        }
+      } finally {
+        if (initial) {
+          setLoadingActivityLogs(false);
+        } else {
+          setRefreshingActivityLogs(false);
+        }
+      }
+    },
+    [getToken, showError],
+  );
+
+  const openUserLogs = (user) => {
     if (!user?.id) {
       showWarning('Este e-mail ainda nao possui usuario local para consultar logs.');
       return;
@@ -292,30 +339,24 @@ export default function AccessListPage() {
 
     setSelectedLogUser(user);
     setActivityLogs([]);
-    setLoadingActivityLogs(true);
-
-    try {
-      const logs = await getUserActivityLogs(user.id, getToken);
-      setActivityLogs(Array.isArray(logs) ? logs : []);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Nao foi possivel carregar os logs do usuario.';
-      showError(message);
-    } finally {
-      setLoadingActivityLogs(false);
-    }
+    setActivityLogError('');
+    setLastActivityLogFetchAt(null);
+    void loadUserLogs(user, { initial: true });
   };
 
-  const handleUserLogKeyDown = (event, user) => {
-    if (event.key !== 'Enter' && event.key !== ' ') {
-      return;
+  useEffect(() => {
+    if (!selectedLogUser?.id) {
+      return undefined;
     }
 
-    event.preventDefault();
-    void openUserLogs(user);
-  };
+    const intervalId = window.setInterval(() => {
+      void loadUserLogs(selectedLogUser);
+    }, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [loadUserLogs, selectedLogUser]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -588,13 +629,7 @@ export default function AccessListPage() {
                     return (
                       <tr key={allowedEmail.id}>
                         <td>
-                          <button
-                            className="table-primary-cell user-log-trigger"
-                            disabled={!logUser?.id}
-                            onClick={() => void openUserLogs(logUser)}
-                            title="Abrir logs do usuario"
-                            type="button"
-                          >
+                          <div className="table-primary-cell">
                             <strong>{allowedEmail.email}</strong>
                             <small>
                               {isProtected
@@ -603,7 +638,7 @@ export default function AccessListPage() {
                                   ? 'Seu usuário atual'
                                   : `ID: ${allowedEmail.id.slice(0, 8)}`}
                             </small>
-                          </button>
+                          </div>
                         </td>
                         <td>
                           <SelectField
@@ -624,6 +659,17 @@ export default function AccessListPage() {
                         <td>{formatDateTime(allowedEmail.updatedAt)}</td>
                         <td>
                           <div className="table-actions">
+                            <button
+                              className="btn btn-secondary btn-compact"
+                              disabled={!logUser?.id}
+                              onClick={() => openUserLogs(logUser)}
+                              title="Abrir logs do usuario"
+                              type="button"
+                            >
+                              <Terminal size={16} />
+                              Logs
+                            </button>
+
                             <button
                               className="btn btn-secondary btn-compact"
                               disabled={
@@ -736,11 +782,6 @@ export default function AccessListPage() {
                 <article
                   className={`location-status-row location-status-${meta.tone}`}
                   key={row.user.id}
-                  onClick={() => void openUserLogs(row.user)}
-                  onKeyDown={(event) => handleUserLogKeyDown(event, row.user)}
-                  role="button"
-                  tabIndex={0}
-                  title="Abrir logs do usuario"
                 >
                   <div className="location-user-copy">
                     <span className="user-avatar">
@@ -783,6 +824,15 @@ export default function AccessListPage() {
                         : 'Nenhuma'}
                     </strong>
                     <small>{row.serviceOrder?.customer || 'Sem atendimento ativo'}</small>
+                    <button
+                      className="btn btn-secondary btn-compact location-log-button"
+                      onClick={() => openUserLogs(row.user)}
+                      title="Abrir logs do usuario"
+                      type="button"
+                    >
+                      <Terminal size={16} />
+                      Logs
+                    </button>
                   </div>
                 </article>
               );
@@ -872,9 +922,33 @@ export default function AccessListPage() {
       >
         <div className="activity-log-terminal">
           <div className="activity-log-terminal-bar">
-            <span>{selectedLogUser?.email || selectedLogUser?.clerkUserId}</span>
-            <span>{activityLogs.length} eventos</span>
+            <div className="activity-log-terminal-user">
+              <span>{selectedLogUser?.email || selectedLogUser?.clerkUserId}</span>
+              <small>
+                {lastActivityLogFetchAt
+                  ? `Ultima busca: ${formatDateTime(lastActivityLogFetchAt)}`
+                  : 'Atualiza automaticamente a cada 5s'}
+              </small>
+            </div>
+            <span
+              className={`activity-log-refresh-status ${
+                loadingActivityLogs || refreshingActivityLogs ? 'is-loading' : ''
+              }`.trim()}
+            >
+              {loadingActivityLogs || refreshingActivityLogs ? (
+                <ButtonSpinner className="activity-log-spinner" />
+              ) : null}
+              {loadingActivityLogs
+                ? 'Carregando logs...'
+                : refreshingActivityLogs
+                  ? 'Buscando novos logs...'
+                  : `${activityLogs.length} eventos`}
+            </span>
           </div>
+
+          {activityLogError ? (
+            <div className="activity-log-request-error">{activityLogError}</div>
+          ) : null}
 
           {loadingActivityLogs ? (
             <div className="activity-log-empty">Carregando logs...</div>

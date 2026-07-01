@@ -2467,24 +2467,6 @@ textarea {
   box-shadow: 0 12px 24px rgba(47, 91, 255, 0.22);
 }
 
-.user-log-trigger {
-  width: 100%;
-  padding: 0;
-  text-align: left;
-}
-
-.user-log-trigger:not(:disabled) {
-  cursor: pointer;
-}
-
-.user-log-trigger:not(:disabled):hover strong {
-  color: var(--primary-600);
-}
-
-.user-log-trigger:disabled {
-  cursor: default;
-}
-
 .location-status-card {
   display: flex;
   flex-direction: column;
@@ -2570,20 +2552,6 @@ textarea {
   box-shadow: 0 14px 32px rgba(46, 79, 145, 0.08);
 }
 
-.location-status-row[role='button'] {
-  cursor: pointer;
-}
-
-.location-status-row[role='button']:hover {
-  border-color: rgba(47, 91, 255, 0.35);
-  box-shadow: 0 16px 34px rgba(46, 79, 145, 0.12);
-}
-
-.location-status-row[role='button']:focus-visible {
-  outline: 3px solid rgba(47, 91, 255, 0.22);
-  outline-offset: 3px;
-}
-
 .location-status-disabled {
   border-color: rgba(239, 68, 68, 0.28);
   background: linear-gradient(180deg, #fffafa, #ffffff);
@@ -2639,6 +2607,11 @@ textarea {
   letter-spacing: 0.08em;
   font-size: 0.72rem;
   font-weight: 800;
+}
+
+.location-log-button {
+  width: fit-content;
+  margin-top: 0.35rem;
 }
 
 .data-table-scroll {
@@ -2921,11 +2894,57 @@ textarea {
 .activity-log-terminal-bar {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 1rem;
   padding: 0.7rem 0.9rem;
   border-bottom: 1px solid rgba(148, 163, 184, 0.24);
   color: #93c5fd;
   font-size: 0.78rem;
+}
+
+.activity-log-terminal-user {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.activity-log-terminal-user span,
+.activity-log-terminal-user small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-log-terminal-user small {
+  color: #bfdbfe;
+  opacity: 0.8;
+}
+
+.activity-log-refresh-status {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.45rem;
+  color: #bfdbfe;
+}
+
+.activity-log-refresh-status.is-loading {
+  color: #fde68a;
+}
+
+.activity-log-spinner {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.activity-log-request-error {
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid rgba(248, 113, 113, 0.22);
+  background: rgba(127, 29, 29, 0.32);
+  color: #fecaca;
+  font-size: 0.8rem;
+  line-height: 1.45;
 }
 
 .activity-log-stream {
