@@ -116,6 +116,16 @@ export const removeAllowedEmail = (id, getToken) =>
     method: 'DELETE',
   });
 
+export const createMyActivityLog = (payload, getToken) =>
+  request('/activity-logs/me', {
+    body: JSON.stringify(payload),
+    getToken,
+    method: 'POST',
+  });
+
+export const getUserActivityLogs = (userId, getToken, limit = 80) =>
+  request(`/activity-logs/users/${userId}?limit=${limit}`, { getToken });
+
 export const getCustomers = (getToken) => request('/customers', { getToken });
 
 export const createCustomer = (payload, getToken) =>

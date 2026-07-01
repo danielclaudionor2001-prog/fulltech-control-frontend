@@ -1,6 +1,10 @@
 const DEFAULT_LOCATION_TIMEOUT = 12000;
 const RECENT_LOCATION_FALLBACK_MAX_AGE = 60000;
 const RECENT_LOCATION_FALLBACK_TIMEOUT = 5000;
+const LOCATION_DEBUG_LOG_KEY = 'fulltech-location-debug-log';
+const LOCATION_DEBUG_LOG_LIMIT = 60;
+const LOCATION_DEBUG_PREFIX = '[Fulltech Location]';
+const APP_BUILD_ID = import.meta.env.VITE_APP_BUILD_ID || 'development';
 
 const IOS_STEPS = [
   'Toque no cadeado ou no ícone ao lado do endereço do site.',
@@ -83,6 +87,214 @@ export function detectLocationSupportContext() {
     isMobile,
     isSafari,
   };
+}
+
+function sanitizeLocationOptions(options) {
+  return {
+    enableHighAccuracy: Boolean(options.enableHighAccuracy),
+    maximumAge: options.maximumAge,
+    timeout: options.timeout,
+  };
+}
+
+function getGeolocationErrorName(code) {
+  if (code === 1) {
+    return 'PERMISSION_DENIED';
+  }
+
+  if (code === 2) {
+    return 'POSITION_UNAVAILABLE';
+  }
+
+  if (code === 3) {
+    return 'TIMEOUT';
+  }
+
+  return 'UNKNOWN';
+}
+
+function summarizeGeolocationError(error) {
+  return {
+    code: error?.code ?? null,
+    message: error?.message || String(error || 'Unknown geolocation error'),
+    name: getGeolocationErrorName(error?.code),
+  };
+}
+
+function summarizePosition(position) {
+  const latitude = Number(position?.coords?.latitude);
+  const longitude = Number(position?.coords?.longitude);
+  const timestamp = Number(position?.timestamp);
+
+  return {
+    accuracyMeters: position?.coords?.accuracy ?? null,
+    altitudeAccuracyMeters: position?.coords?.altitudeAccuracy ?? null,
+    heading: position?.coords?.heading ?? null,
+    hasCoordinates: Number.isFinite(latitude) && Number.isFinite(longitude),
+    latitudeApprox: Number.isFinite(latitude) ? Number(latitude.toFixed(4)) : null,
+    longitudeApprox: Number.isFinite(longitude)
+      ? Number(longitude.toFixed(4))
+      : null,
+    positionAgeMs: Number.isFinite(timestamp) ? Date.now() - timestamp : null,
+    speed: position?.coords?.speed ?? null,
+    timestamp: Number.isFinite(timestamp)
+      ? new Date(timestamp).toISOString()
+      : null,
+  };
+}
+
+async function readCacheState() {
+  const serviceWorkerSupported = Boolean(navigator.serviceWorker);
+  let cacheKeys = [];
+  let serviceWorkerRegistration = null;
+
+  if (window.caches?.keys) {
+    try {
+      cacheKeys = await window.caches.keys();
+    } catch {
+      cacheKeys = ['cache-keys-unavailable'];
+    }
+  }
+
+  if (navigator.serviceWorker?.getRegistration) {
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+
+      serviceWorkerRegistration = registration
+        ? {
+            activeScript: registration.active?.scriptURL ?? null,
+            installingScript: registration.installing?.scriptURL ?? null,
+            scope: registration.scope,
+            waitingScript: registration.waiting?.scriptURL ?? null,
+          }
+        : null;
+    } catch {
+      serviceWorkerRegistration = {
+        error: 'service-worker-registration-unavailable',
+      };
+    }
+  }
+
+  return {
+    appBuildId: APP_BUILD_ID,
+    cacheKeys,
+    cacheSupported: Boolean(window.caches),
+    serviceWorkerControlled: Boolean(navigator.serviceWorker?.controller),
+    serviceWorkerControllerScript:
+      navigator.serviceWorker?.controller?.scriptURL ?? null,
+    serviceWorkerRegistration,
+    serviceWorkerSupported,
+  };
+}
+
+function getLocationRuntimeContext() {
+  const supportContext = detectLocationSupportContext();
+
+  return {
+    appBuildId: APP_BUILD_ID,
+    browserName: supportContext.browserName,
+    geolocationSupported: Boolean(navigator.geolocation),
+    isAndroid: supportContext.isAndroid,
+    isIOS: supportContext.isIOS,
+    isMobile: supportContext.isMobile,
+    isSecureContext: Boolean(window.isSecureContext),
+    origin: window.location.origin,
+    pathname: window.location.pathname,
+    permissionsApiSupported: Boolean(navigator.permissions?.query),
+    protocol: window.location.protocol,
+    userAgent: navigator.userAgent || '',
+    visibilityState: document.visibilityState,
+  };
+}
+
+async function readLocationPermissionState() {
+  if (!navigator.permissions?.query) {
+    return 'permissions-api-unavailable';
+  }
+
+  try {
+    const permission = await navigator.permissions.query({
+      name: 'geolocation',
+    });
+    return permission.state;
+  } catch (error) {
+    return `permission-query-failed: ${
+      error instanceof Error ? error.message : String(error)
+    }`;
+  }
+}
+
+function appendLocationDebugLog(entry) {
+  try {
+    const previous = JSON.parse(
+      window.localStorage.getItem(LOCATION_DEBUG_LOG_KEY) || '[]',
+    );
+    const next = [...previous, entry].slice(-LOCATION_DEBUG_LOG_LIMIT);
+    window.localStorage.setItem(LOCATION_DEBUG_LOG_KEY, JSON.stringify(next));
+    window.fulltechLocationLogs = () =>
+      JSON.parse(window.localStorage.getItem(LOCATION_DEBUG_LOG_KEY) || '[]');
+    window.fulltechClearLocationLogs = () =>
+      window.localStorage.removeItem(LOCATION_DEBUG_LOG_KEY);
+  } catch {
+    // Diagnostic logging must never block the location flow.
+  }
+}
+
+function buildLocationDebugMessage(eventName, payload) {
+  if (eventName === 'request-start') {
+    return `Tentativa de localizacao iniciada (${payload.source}). Permissao: ${payload.permissionState}. Build: ${payload.cache?.appBuildId ?? APP_BUILD_ID}.`;
+  }
+
+  if (eventName === 'request-success') {
+    return `Localizacao capturada (${payload.source})${
+      payload.usedFallback ? ' usando posicao recente do navegador' : ''
+    }.`;
+  }
+
+  if (eventName === 'request-primary-failed') {
+    return `Falha na leitura principal da localizacao (${payload.error?.name ?? 'UNKNOWN'}).`;
+  }
+
+  if (eventName === 'request-fallback-start') {
+    return 'Tentando usar uma localizacao recente armazenada pelo navegador.';
+  }
+
+  if (eventName === 'request-fallback-failed') {
+    return `Falha tambem na localizacao recente (${payload.error?.name ?? 'UNKNOWN'}).`;
+  }
+
+  if (eventName === 'request-failed') {
+    return `Nao foi possivel capturar localizacao (${payload.error?.name ?? 'UNKNOWN'}).`;
+  }
+
+  return eventName;
+}
+
+function logLocationDebug(level, eventName, payload = {}) {
+  const entry = {
+    event: eventName,
+    level,
+    message: buildLocationDebugMessage(eventName, payload),
+    timestamp: new Date().toISOString(),
+    ...payload,
+  };
+  const logger = console[level] || console.info;
+
+  appendLocationDebugLog(entry);
+  logger(`${LOCATION_DEBUG_PREFIX} ${eventName}`, entry);
+  return entry;
+}
+
+function reportLocationDebug(debugReporter, entry) {
+  if (typeof debugReporter !== 'function') {
+    return;
+  }
+
+  try {
+    void debugReporter(entry);
+  } catch (error) {
+    console.warn(`${LOCATION_DEBUG_PREFIX} reporter failed`, error);
+  }
 }
 
 export function buildLocationGuidance() {
@@ -229,33 +441,92 @@ function getBrowserPosition(options) {
 }
 
 export async function requestBrowserLocation(options = {}) {
-  const { allowRecentFallback = true, ...positionOptions } = options;
+  const {
+    allowRecentFallback = true,
+    debugReporter,
+    debugSource = 'unknown-location-flow',
+    ...positionOptions
+  } = options;
   const requestOptions = {
     enableHighAccuracy: true,
     maximumAge: 0,
     timeout: DEFAULT_LOCATION_TIMEOUT,
     ...positionOptions,
   };
+  const permissionState = await readLocationPermissionState();
+  const runtimeContext = getLocationRuntimeContext();
+  const cacheState = await readCacheState();
+  const writeDebug = (level, eventName, payload = {}) => {
+    const entry = logLocationDebug(level, eventName, {
+      source: debugSource,
+      ...payload,
+    });
+
+    reportLocationDebug(debugReporter, entry);
+    return entry;
+  };
+
+  writeDebug('info', 'request-start', {
+    allowRecentFallback,
+    cache: cacheState,
+    context: runtimeContext,
+    options: sanitizeLocationOptions(requestOptions),
+    permissionState,
+  });
 
   try {
-    return await getBrowserPosition(requestOptions);
+    const position = await getBrowserPosition(requestOptions);
+
+    writeDebug('info', 'request-success', {
+      position: summarizePosition(position),
+      usedFallback: false,
+    });
+
+    return position;
   } catch (error) {
     const canUseRecentFallback =
       allowRecentFallback &&
       requestOptions.maximumAge === 0 &&
       isRetryableGeolocationError(error);
 
+    writeDebug('warn', 'request-primary-failed', {
+      canUseRecentFallback,
+      error: summarizeGeolocationError(error),
+      options: sanitizeLocationOptions(requestOptions),
+    });
+
     if (canUseRecentFallback) {
+      const fallbackOptions = {
+        ...requestOptions,
+        maximumAge: RECENT_LOCATION_FALLBACK_MAX_AGE,
+        timeout: RECENT_LOCATION_FALLBACK_TIMEOUT,
+      };
+
+      writeDebug('info', 'request-fallback-start', {
+        options: sanitizeLocationOptions(fallbackOptions),
+      });
+
       try {
-        return await getBrowserPosition({
-          ...requestOptions,
-          maximumAge: RECENT_LOCATION_FALLBACK_MAX_AGE,
-          timeout: RECENT_LOCATION_FALLBACK_TIMEOUT,
+        const fallbackPosition = await getBrowserPosition(fallbackOptions);
+
+        writeDebug('info', 'request-success', {
+          position: summarizePosition(fallbackPosition),
+          usedFallback: true,
         });
+
+        return fallbackPosition;
       } catch (fallbackError) {
+        writeDebug('warn', 'request-fallback-failed', {
+          error: summarizeGeolocationError(fallbackError),
+        });
+
         throw createGeolocationError(fallbackError);
       }
     }
+
+    writeDebug('warn', 'request-failed', {
+      error: summarizeGeolocationError(error),
+    });
 
     throw createGeolocationError(error);
   }

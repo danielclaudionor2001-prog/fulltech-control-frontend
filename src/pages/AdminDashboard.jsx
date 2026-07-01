@@ -50,6 +50,7 @@ import {
   ORDER_STATUS_FILTER_OPTIONS,
   sortServiceOrdersByLatest,
 } from '../utils/serviceOrdersFilter';
+import { sendLocationDebugLog } from '../utils/activityLogSupport';
 import { useAppAuth } from '../auth/useAppAuth';
 
 const ROLE_OPTIONS = [
@@ -594,7 +595,13 @@ export default function AdminDashboard() {
     setIsLocationPendingOpen(true);
 
     try {
-      const position = await requestBrowserLocation();
+      const position = await requestBrowserLocation({
+        debugReporter: (entry) =>
+          sendLocationDebugLog(entry, getToken).catch((logError) => {
+            console.warn('Failed to persist location debug log:', logError);
+          }),
+        debugSource: 'admin-retry-location',
+      });
       await updateLocation(
         position.coords.latitude,
         position.coords.longitude,
@@ -625,7 +632,13 @@ export default function AdminDashboard() {
     setIsLocationPendingOpen(true);
 
     try {
-      const position = await requestBrowserLocation();
+      const position = await requestBrowserLocation({
+        debugReporter: (entry) =>
+          sendLocationDebugLog(entry, getToken).catch((logError) => {
+            console.warn('Failed to persist location debug log:', logError);
+          }),
+        debugSource: `admin-start-order:${id}`,
+      });
 
       await startServiceOrder(
         id,

@@ -6,6 +6,7 @@ import {
   Navigation,
   Plus,
   RefreshCw,
+  Terminal,
   Trash2,
   Wifi,
   WifiOff,
@@ -21,6 +22,7 @@ import {
   createAllowedEmail,
   getAccessList,
   getLocationStatuses,
+  getUserActivityLogs,
   removeAllowedEmail,
 } from '../services/api';
 
@@ -98,6 +100,17 @@ const getLocationUserName = (row) =>
 const getLocationRoleLabel = (role) =>
   role === 'SUPERVISOR' ? 'Supervisor' : 'Tecnico';
 
+const getUserLogName = (user) =>
+  user?.name || user?.email || user?.clerkUserId || 'Usuario';
+
+const formatLogMetadata = (metadata) => {
+  if (!metadata || Object.keys(metadata).length === 0) {
+    return '';
+  }
+
+  return JSON.stringify(metadata, null, 2);
+};
+
 export default function AccessListPage() {
   const { getToken } = useAuth();
   const { appUser, refreshCurrentUser } = useAppAuth();
@@ -115,6 +128,9 @@ export default function AccessListPage() {
   const [busyAllowedEmailId, setBusyAllowedEmailId] = useState('');
   const [busyAction, setBusyAction] = useState('');
   const [pendingDeleteAllowedEmail, setPendingDeleteAllowedEmail] = useState(null);
+  const [selectedLogUser, setSelectedLogUser] = useState(null);
+  const [activityLogs, setActivityLogs] = useState([]);
+  const [loadingActivityLogs, setLoadingActivityLogs] = useState(false);
   const [pageError, setPageError] = useState('');
 
   const isInitialLoading = loading && allowedEmails.length === 0;
@@ -261,6 +277,44 @@ export default function AccessListPage() {
     }
 
     setPendingDeleteAllowedEmail(null);
+  };
+
+  const closeActivityLogsModal = () => {
+    setSelectedLogUser(null);
+    setActivityLogs([]);
+  };
+
+  const openUserLogs = async (user) => {
+    if (!user?.id) {
+      showWarning('Este e-mail ainda nao possui usuario local para consultar logs.');
+      return;
+    }
+
+    setSelectedLogUser(user);
+    setActivityLogs([]);
+    setLoadingActivityLogs(true);
+
+    try {
+      const logs = await getUserActivityLogs(user.id, getToken);
+      setActivityLogs(Array.isArray(logs) ? logs : []);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Nao foi possivel carregar os logs do usuario.';
+      showError(message);
+    } finally {
+      setLoadingActivityLogs(false);
+    }
+  };
+
+  const handleUserLogKeyDown = (event, user) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    event.preventDefault();
+    void openUserLogs(user);
   };
 
   const handleSubmit = async (event) => {
@@ -519,11 +573,28 @@ export default function AccessListPage() {
                     const isProtected = Boolean(allowedEmail.isProtected);
                     const disableRoleChange = isBusy || isProtected;
                     const disableDelete = isBusy || isCurrentUser || isProtected;
+                    const logUser =
+                      allowedEmail.user ||
+                      (isCurrentUser
+                        ? {
+                            clerkUserId: appUser?.clerkUserId,
+                            email: appUser?.email,
+                            id: appUser?.id,
+                            name: appUser?.name,
+                            role: appUser?.role,
+                          }
+                        : null);
 
                     return (
                       <tr key={allowedEmail.id}>
                         <td>
-                          <div className="table-primary-cell">
+                          <button
+                            className="table-primary-cell user-log-trigger"
+                            disabled={!logUser?.id}
+                            onClick={() => void openUserLogs(logUser)}
+                            title="Abrir logs do usuario"
+                            type="button"
+                          >
                             <strong>{allowedEmail.email}</strong>
                             <small>
                               {isProtected
@@ -532,7 +603,7 @@ export default function AccessListPage() {
                                   ? 'Seu usuário atual'
                                   : `ID: ${allowedEmail.id.slice(0, 8)}`}
                             </small>
-                          </div>
+                          </button>
                         </td>
                         <td>
                           <SelectField
@@ -665,6 +736,11 @@ export default function AccessListPage() {
                 <article
                   className={`location-status-row location-status-${meta.tone}`}
                   key={row.user.id}
+                  onClick={() => void openUserLogs(row.user)}
+                  onKeyDown={(event) => handleUserLogKeyDown(event, row.user)}
+                  role="button"
+                  tabIndex={0}
+                  title="Abrir logs do usuario"
                 >
                   <div className="location-user-copy">
                     <span className="user-avatar">
@@ -783,6 +859,51 @@ export default function AccessListPage() {
                 : 'Excluir usuário'}
             </button>
           </div>
+        </div>
+      </ModalShell>
+
+      <ModalShell
+        className="activity-log-modal"
+        description="Ultimos eventos registrados para este usuario."
+        icon={Terminal}
+        onClose={closeActivityLogsModal}
+        open={Boolean(selectedLogUser)}
+        title={`Terminal de logs - ${getUserLogName(selectedLogUser)}`}
+      >
+        <div className="activity-log-terminal">
+          <div className="activity-log-terminal-bar">
+            <span>{selectedLogUser?.email || selectedLogUser?.clerkUserId}</span>
+            <span>{activityLogs.length} eventos</span>
+          </div>
+
+          {loadingActivityLogs ? (
+            <div className="activity-log-empty">Carregando logs...</div>
+          ) : activityLogs.length === 0 ? (
+            <div className="activity-log-empty">
+              Nenhum log registrado para este usuario ainda.
+            </div>
+          ) : (
+            <div className="activity-log-stream">
+              {activityLogs.map((log) => {
+                const metadata = formatLogMetadata(log.metadata);
+                const level = log.metadata?.level || 'info';
+
+                return (
+                  <article
+                    className={`activity-log-line activity-log-${level}`}
+                    key={log.id}
+                  >
+                    <div className="activity-log-line-head">
+                      <time>{formatDateTime(log.createdAt)}</time>
+                      <code>{log.type}</code>
+                    </div>
+                    <p>{log.message}</p>
+                    {metadata ? <pre>{metadata}</pre> : null}
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </div>
       </ModalShell>
     </div>

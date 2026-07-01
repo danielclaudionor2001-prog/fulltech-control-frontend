@@ -2,9 +2,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import process from 'node:process'
+
+const appBuildId = process.env.VITE_APP_BUILD_ID || new Date().toISOString()
 
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_APP_BUILD_ID': JSON.stringify(appBuildId),
+  },
   plugins: [
     react(),
     VitePWA({

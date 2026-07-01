@@ -8,6 +8,7 @@ import {
   isTechnicalLocationSyncMessage,
   requestBrowserLocation,
 } from '../utils/locationSupport';
+import { sendLocationDebugLog } from '../utils/activityLogSupport';
 import LocationPermissionModal from './LocationPermissionModal';
 import LocationRequestPendingModal from './LocationRequestPendingModal';
 import { useToast } from './ToastContext';
@@ -27,7 +28,15 @@ export default function SessionLocationPrompt() {
       setIsPendingOpen(true);
 
       try {
-        const position = await requestBrowserLocation();
+        const position = await requestBrowserLocation({
+          debugReporter: (entry) =>
+            sendLocationDebugLog(entry, getToken).catch((logError) => {
+              console.warn('Failed to persist location debug log:', logError);
+            }),
+          debugSource: showSuccessToast
+            ? 'session-location-retry'
+            : 'session-location-login',
+        });
 
         try {
           await updateLocation(

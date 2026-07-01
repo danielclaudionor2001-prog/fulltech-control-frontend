@@ -41,6 +41,7 @@ import {
   ORDER_STATUS_FILTER_OPTIONS,
   sortServiceOrdersByLatest,
 } from '../utils/serviceOrdersFilter';
+import { sendLocationDebugLog } from '../utils/activityLogSupport';
 
 const initialFilters = {
   search: '',
@@ -288,7 +289,13 @@ export default function TechnicianDashboard() {
     setIsLocationPendingOpen(true);
 
     try {
-      const position = await requestBrowserLocation();
+      const position = await requestBrowserLocation({
+        debugReporter: (entry) =>
+          sendLocationDebugLog(entry, getToken).catch((logError) => {
+            console.warn('Failed to persist location debug log:', logError);
+          }),
+        debugSource: 'tech-retry-location',
+      });
       await updateLocation(
         position.coords.latitude,
         position.coords.longitude,
@@ -326,7 +333,13 @@ export default function TechnicianDashboard() {
     setIsLocationPendingOpen(true);
 
     try {
-      const position = await requestBrowserLocation();
+      const position = await requestBrowserLocation({
+        debugReporter: (entry) =>
+          sendLocationDebugLog(entry, getToken).catch((logError) => {
+            console.warn('Failed to persist location debug log:', logError);
+          }),
+        debugSource: `tech-start-order:${id}`,
+      });
       setLocationState('granted');
 
       await startServiceOrder(
