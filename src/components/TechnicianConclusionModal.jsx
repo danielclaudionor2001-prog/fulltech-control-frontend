@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, ClipboardCheck } from 'lucide-react';
+import { Camera, ClipboardCheck, Images, Trash2 } from 'lucide-react';
 import ButtonSpinner from './ButtonSpinner';
 import ModalShell from './ModalShell';
 import SelectField from './SelectField';
@@ -96,6 +96,8 @@ export default function TechnicianConclusionModal({
 }) {
   const { showWarning } = useToast();
   const canvasRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
   const signatureContextRef = useRef(null);
   const isDrawingRef = useRef(false);
   const activePointerIdRef = useRef(null);
@@ -242,8 +244,21 @@ export default function TechnicianConclusionModal({
 
   const handlePhotosChange = async (event) => {
     const files = Array.from(event.target.files || []);
+
+    event.target.value = '';
+
+    if (files.length === 0) {
+      return;
+    }
+
     const images = await Promise.all(files.map(fileToOptimizedDataUrl));
-    setCompletionPhotos(images);
+    setCompletionPhotos((currentPhotos) => [...currentPhotos, ...images]);
+  };
+
+  const removeCompletionPhoto = (photoIndex) => {
+    setCompletionPhotos((currentPhotos) =>
+      currentPhotos.filter((_, index) => index !== photoIndex),
+    );
   };
 
   const handleSubmit = (event) => {
@@ -355,11 +370,40 @@ export default function TechnicianConclusionModal({
 
           <label className="simple-form-field">
             <span>Fotos do atendimento</span>
+            <div className="photo-picker-actions">
+              <button
+                className="btn btn-secondary"
+                onClick={() => cameraInputRef.current?.click()}
+                type="button"
+              >
+                <Camera size={18} />
+                Tirar foto
+              </button>
+
+              <button
+                className="btn btn-outline"
+                onClick={() => galleryInputRef.current?.click()}
+                type="button"
+              >
+                <Images size={18} />
+                Galeria
+              </button>
+            </div>
             <input
               accept="image/*"
               capture="environment"
+              className="photo-picker-input"
               multiple
               onChange={(event) => void handlePhotosChange(event)}
+              ref={cameraInputRef}
+              type="file"
+            />
+            <input
+              accept="image/*"
+              className="photo-picker-input"
+              multiple
+              onChange={(event) => void handlePhotosChange(event)}
+              ref={galleryInputRef}
               type="file"
             />
             <small className="section-subtitle">
@@ -368,9 +412,27 @@ export default function TechnicianConclusionModal({
           </label>
 
           {completionPhotos.length ? (
-            <div className="os-card-meta-item">
-              <Camera size={16} />
-              <span>{completionPhotos.length} foto(s) selecionada(s)</span>
+            <div className="completion-photo-panel">
+              <div className="os-card-meta-item">
+                <Camera size={16} />
+                <span>{completionPhotos.length} foto(s) selecionada(s)</span>
+              </div>
+
+              <div className="completion-photo-grid">
+                {completionPhotos.map((photo, index) => (
+                  <figure className="completion-photo-card" key={`${photo}-${index}`}>
+                    <img alt={`Foto ${index + 1}`} src={photo} />
+                    <button
+                      aria-label={`Remover foto ${index + 1}`}
+                      className="completion-photo-remove"
+                      onClick={() => removeCompletionPhoto(index)}
+                      type="button"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </figure>
+                ))}
+              </div>
             </div>
           ) : null}
 
